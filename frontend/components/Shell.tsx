@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+
   async function logout() {
     await apiFetch("/auth/logout", { method: "POST" });
     router.push("/login");
@@ -27,7 +28,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <Link href="/dashboard" className="text-xl font-bold text-ink">
-            StudyPilot
+            Manaboard
           </Link>
           <nav className="flex flex-wrap items-center gap-1 text-sm font-semibold">
             {links.map(([href, label]) => (

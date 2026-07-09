@@ -1,6 +1,6 @@
-# StudyPilot
+# Manaboard
 
-StudyPilot is a local study support app for recording study logs, generating practice problems, analyzing weak areas, creating schedules, and explaining problems from images.
+Manaboard is a local study support app for recording study logs, generating practice problems, analyzing weak areas, creating schedules, and explaining problems from images.
 
 ## Features
 
