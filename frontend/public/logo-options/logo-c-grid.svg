@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="160" viewBox="0 0 520 160" role="img" aria-label="Manaboard logo option C">
+  <rect width="520" height="160" rx="24" fill="#f8fafc"/>
+  <g transform="translate(32 28)">
+    <rect x="0" y="0" width="104" height="104" rx="22" fill="#eef2ff" stroke="#1e293b" stroke-width="4"/>
+    <rect x="22" y="22" width="24" height="24" rx="6" fill="#2563eb"/>
+    <rect x="58" y="22" width="24" height="24" rx="6" fill="#10b981"/>
+    <rect x="22" y="58" width="24" height="24" rx="6" fill="#f97316"/>
+    <path d="M58 70l8 8 20-24" fill="none" stroke="#1e293b" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="164" y="72" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="800">Manaboard</text>
+  <text x="166" y="106" fill="#475569" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Structured FE learning</text>
+</svg>

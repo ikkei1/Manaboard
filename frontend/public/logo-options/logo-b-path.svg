@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="160" viewBox="0 0 520 160" role="img" aria-label="Manaboard logo option B">
+  <rect width="520" height="160" rx="24" fill="#ffffff"/>
+  <g transform="translate(32 26)">
+    <rect x="0" y="0" width="108" height="108" rx="28" fill="#0f172a"/>
+    <path d="M29 36c16-8 31-8 45 0v46c-14-8-29-8-45 0V36z" fill="#ffffff"/>
+    <path d="M54 36c16-8 31-8 45 0v46c-14-8-29-8-45 0V36z" fill="#dbeafe"/>
+    <path d="M41 54h22M41 66h16M67 54h18M67 66h12" stroke="#0f172a" stroke-width="5" stroke-linecap="round"/>
+    <path d="M26 93c20-10 40-10 58 0" fill="none" stroke="#f97316" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <text x="164" y="72" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="800">Manaboard</text>
+  <text x="166" y="106" fill="#475569" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Plan, review, remember</text>
+</svg>

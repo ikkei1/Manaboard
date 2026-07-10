@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="160" viewBox="0 0 520 160" role="img" aria-label="Manaboard logo option A">
+  <rect width="520" height="160" rx="24" fill="#f8fafc"/>
+  <g transform="translate(32 28)">
+    <rect x="0" y="0" width="104" height="104" rx="24" fill="#1d4ed8"/>
+    <rect x="24" y="26" width="56" height="52" rx="10" fill="#ffffff"/>
+    <path d="M35 42h34M35 54h28M35 66h20" stroke="#1d4ed8" stroke-width="6" stroke-linecap="round"/>
+    <path d="M70 26l14 12-14 12" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="164" y="72" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="800">Manaboard</text>
+  <text x="166" y="106" fill="#475569" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Study board for FE exam</text>
+</svg>

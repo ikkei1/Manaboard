@@ -7,12 +7,22 @@ import { apiFetch, subjects, todayString } from "@/lib/api";
 
 type StudyLog = { id: string; subject: string; study_minutes: number; studied_at: string; memo?: string };
 type StudyList = { items: StudyLog[]; total: number; page: number; page_size: number };
+type TimerMode = "focus" | "short" | "long";
+
+const timerModes: Record<TimerMode, { label: string; minutes: number; color: string; nextLabel: string }> = {
+  focus: { label: "集中", minutes: 25, color: "#2563eb", nextLabel: "休憩へ" },
+  short: { label: "小休憩", minutes: 5, color: "#059669", nextLabel: "集中へ" },
+  long: { label: "長休憩", minutes: 15, color: "#7c3aed", nextLabel: "集中へ" },
+};
+
+function secondsFor(mode: TimerMode) {
+  return timerModes[mode].minutes * 60;
+}
 
 function formatTimer(totalSeconds: number) {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+  return [minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }
 
 export default function StudyPage() {
@@ -23,11 +33,16 @@ export default function StudyPage() {
   const [toast, setToast] = useState("");
   const [timerSubject, setTimerSubject] = useState(subjects[0]);
   const [memo, setMemo] = useState("");
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [timerMode, setTimerMode] = useState<TimerMode>("focus");
+  const [remainingSeconds, setRemainingSeconds] = useState(secondsFor("focus"));
+  const [isRunning, setIsRunning] = useState(false);
+  const [completedFocusCount, setCompletedFocusCount] = useState(0);
 
-  const isRunning = startedAt !== null;
-  const recordedMinutes = useMemo(() => Math.max(1, Math.ceil(elapsedSeconds / 60)), [elapsedSeconds]);
+  const durationSeconds = secondsFor(timerMode);
+  const elapsedSeconds = durationSeconds - remainingSeconds;
+  const focusElapsedSeconds = timerMode === "focus" ? elapsedSeconds : 0;
+  const recordedMinutes = useMemo(() => Math.max(1, Math.ceil(Math.max(1, focusElapsedSeconds) / 60)), [focusElapsedSeconds]);
+  const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   async function load() {
     const params = new URLSearchParams({ page: String(page) });
@@ -41,42 +56,91 @@ export default function StudyPage() {
   }, [page, filterSubject, studiedAt]);
 
   useEffect(() => {
-    if (!startedAt) return;
+    if (!isRunning) return;
     const timer = window.setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+      setRemainingSeconds((current) => Math.max(0, current - 1));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [startedAt]);
+  }, [isRunning]);
+
+  useEffect(() => {
+    if (!isRunning || remainingSeconds !== 0) return;
+    setIsRunning(false);
+    void completeSession();
+  }, [isRunning, remainingSeconds]);
+
+  function changeMode(nextMode: TimerMode) {
+    if (isRunning) return;
+    setTimerMode(nextMode);
+    setRemainingSeconds(secondsFor(nextMode));
+  }
 
   function startTimer() {
     setToast("");
-    setElapsedSeconds(0);
-    setStartedAt(Date.now());
+    if (remainingSeconds === 0) setRemainingSeconds(durationSeconds);
+    setIsRunning(true);
   }
 
-  async function stopAndSave() {
-    if (!startedAt) return;
-    const seconds = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
+  function pauseTimer() {
+    setIsRunning(false);
+  }
+
+  async function saveFocusSession(seconds: number, fallbackMemo: string) {
     const minutes = Math.max(1, Math.ceil(seconds / 60));
-    setStartedAt(null);
-    setElapsedSeconds(seconds);
     await apiFetch("/study", {
       method: "POST",
       body: JSON.stringify({
         subject: timerSubject,
         study_minutes: minutes,
         studied_at: todayString(),
-        memo: memo || `タイマーで${formatTimer(seconds)}学習`,
+        memo: memo || fallbackMemo,
       }),
     });
     setMemo("");
-    setToast(`${timerSubject}を${minutes}分として自動記録しました`);
     await load();
+    return minutes;
+  }
+
+  async function completeSession() {
+    if (timerMode === "focus") {
+      const nextCount = completedFocusCount + 1;
+      const nextMode: TimerMode = nextCount % 4 === 0 ? "long" : "short";
+      const minutes = await saveFocusSession(durationSeconds, "ポモドーロ集中完了");
+      setCompletedFocusCount(nextCount);
+      setTimerMode(nextMode);
+      setRemainingSeconds(secondsFor(nextMode));
+      setToast(`${timerSubject}を${minutes}分として記録しました`);
+      return;
+    }
+    setTimerMode("focus");
+    setRemainingSeconds(secondsFor("focus"));
+    setToast("休憩が終わりました");
+  }
+
+  async function finishEarly() {
+    setIsRunning(false);
+    if (timerMode !== "focus") {
+      setTimerMode("focus");
+      setRemainingSeconds(secondsFor("focus"));
+      setToast("集中に戻しました");
+      return;
+    }
+    if (focusElapsedSeconds <= 0) {
+      setRemainingSeconds(durationSeconds);
+      return;
+    }
+    const minutes = await saveFocusSession(focusElapsedSeconds, `ポモドーロで${formatTimer(focusElapsedSeconds)}集中`);
+    const nextCount = completedFocusCount + 1;
+    const nextMode: TimerMode = nextCount % 4 === 0 ? "long" : "short";
+    setCompletedFocusCount(nextCount);
+    setTimerMode(nextMode);
+    setRemainingSeconds(secondsFor(nextMode));
+    setToast(`${timerSubject}を${minutes}分として記録しました`);
   }
 
   function resetTimer() {
-    setStartedAt(null);
-    setElapsedSeconds(0);
+    setIsRunning(false);
+    setRemainingSeconds(durationSeconds);
   }
 
   async function remove(id: string) {
@@ -86,13 +150,11 @@ export default function StudyPage() {
     await load();
   }
 
-  const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
-
   return (
     <Shell>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-focus">学習記録</p>
+          <p className="text-sm font-semibold text-focus">ポモドーロ</p>
           <h1 className="mt-1 text-3xl font-bold">学習タイマー</h1>
         </div>
         <div className="status-pill">{timerSubject}</div>
@@ -103,34 +165,51 @@ export default function StudyPage() {
       <section className={`panel mb-6 grid gap-5 ${isRunning ? "border-blue-300 bg-blue-50" : ""}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
-            <span className="status-pill">{timerSubject}</span>
-            <span className="status-pill">{recordedMinutes}分</span>
+            <span className="status-pill">{timerModes[timerMode].label}</span>
+            <span className="status-pill">{completedFocusCount}セット</span>
+            {timerMode === "focus" && <span className="status-pill">{recordedMinutes}分</span>}
           </div>
-          <button className="btn-secondary" disabled={isRunning || elapsedSeconds === 0} onClick={resetTimer}>
+          <button className="btn-secondary" disabled={isRunning} onClick={resetTimer}>
             リセット
           </button>
         </div>
 
-        <div className="mx-auto w-full max-w-5xl">
-          <div className="rounded-md border border-slate-200 bg-white px-4 py-10 text-center font-mono text-6xl font-bold leading-none text-ink sm:text-8xl lg:text-9xl">
-            {formatTimer(elapsedSeconds)}
-          </div>
-        </div>
+        <PomodoroClock color={timerModes[timerMode].color} durationSeconds={durationSeconds} remainingSeconds={remainingSeconds} />
 
-        <div className="mx-auto grid w-full max-w-3xl gap-3">
+        <div className="mx-auto grid w-full max-w-3xl gap-3 sm:grid-cols-2">
           {!isRunning ? (
             <button className="action-primary" onClick={startTimer}>
               開始
             </button>
           ) : (
-            <button className="action-danger" onClick={stopAndSave}>
-              停止して記録
+            <button className="action-primary" onClick={pauseTimer}>
+              一時停止
             </button>
           )}
+          <button className="action-danger" disabled={timerMode === "focus" && focusElapsedSeconds <= 0 && !isRunning} onClick={finishEarly}>
+            {timerMode === "focus" ? "終了して記録" : "休憩を終了"}
+          </button>
         </div>
       </section>
 
       <section className="panel mb-6 grid gap-5">
+        <div>
+          <h2 className="section-title">モード</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(Object.keys(timerModes) as TimerMode[]).map((mode) => (
+              <button
+                className={`segment-button ${timerMode === mode ? "segment-on" : "segment-off"}`}
+                disabled={isRunning}
+                key={mode}
+                onClick={() => changeMode(mode)}
+                type="button"
+              >
+                {timerModes[mode].label} {timerModes[mode].minutes}分
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <h2 className="section-title">分野</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -147,6 +226,7 @@ export default function StudyPage() {
             ))}
           </div>
         </div>
+
         <label className="block">
           <span className="label">メモ</span>
           <input
@@ -242,5 +322,71 @@ export default function StudyPage() {
         </button>
       </div>
     </Shell>
+  );
+}
+
+function PomodoroClock({
+  color,
+  durationSeconds,
+  remainingSeconds,
+}: {
+  color: string;
+  durationSeconds: number;
+  remainingSeconds: number;
+}) {
+  const radius = 94;
+  const circumference = 2 * Math.PI * radius;
+  const progress = durationSeconds ? remainingSeconds / durationSeconds : 0;
+  const offset = circumference * (1 - progress);
+  const elapsedRatio = 1 - progress;
+  const angle = elapsedRatio * Math.PI * 2;
+  const handLength = 72;
+  const handX = 120 + Math.sin(angle) * handLength;
+  const handY = 120 - Math.cos(angle) * handLength;
+
+  return (
+    <div className="mx-auto grid w-full max-w-xl place-items-center">
+      <div className="relative aspect-square w-full max-w-[420px]">
+        <svg className="h-full w-full" viewBox="0 0 240 240" role="img" aria-label="ポモドーロタイマー">
+          <circle cx="120" cy="120" r={radius} fill="#ffffff" stroke="#e2e8f0" strokeWidth="14" />
+          <circle
+            cx="120"
+            cy="120"
+            r={radius}
+            fill="transparent"
+            stroke={color}
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            strokeWidth="14"
+            transform="rotate(-90 120 120)"
+          />
+          {Array.from({ length: 12 }).map((_, index) => {
+            const tickAngle = (index / 12) * Math.PI * 2;
+            const inner = index % 3 === 0 ? 82 : 88;
+            const outer = 98;
+            return (
+              <line
+                key={index}
+                stroke="#94a3b8"
+                strokeLinecap="round"
+                strokeWidth={index % 3 === 0 ? 3 : 2}
+                x1={120 + Math.sin(tickAngle) * inner}
+                x2={120 + Math.sin(tickAngle) * outer}
+                y1={120 - Math.cos(tickAngle) * inner}
+                y2={120 - Math.cos(tickAngle) * outer}
+              />
+            );
+          })}
+          <line x1="120" x2={handX} y1="120" y2={handY} stroke={color} strokeLinecap="round" strokeWidth="5" />
+          <circle cx="120" cy="120" r="7" fill={color} />
+        </svg>
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="rounded-md bg-white/90 px-5 py-3 text-center">
+            <p className="font-mono text-6xl font-bold leading-none text-ink sm:text-7xl">{formatTimer(remainingSeconds)}</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
