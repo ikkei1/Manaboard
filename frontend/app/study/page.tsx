@@ -154,8 +154,7 @@ export default function StudyPage() {
     <Shell>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-focus">ポモドーロ</p>
-          <h1 className="mt-1 text-3xl font-bold">学習タイマー</h1>
+          <h1 className="text-3xl font-bold">学習タイマー</h1>
         </div>
         <div className="status-pill">{timerSubject}</div>
       </div>

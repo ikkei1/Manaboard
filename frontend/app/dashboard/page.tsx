@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { apiFetch, subjects } from "@/lib/api";
 
@@ -114,8 +113,7 @@ export default function DashboardPage() {
     <Shell>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-focus">基本情報技術者試験</p>
-          <h1 className="mt-1 text-3xl font-bold text-ink">ホーム</h1>
+          <h1 className="text-3xl font-bold text-ink">ホーム</h1>
         </div>
         <div className="status-pill">カバー {coverage}%</div>
       </div>
@@ -125,18 +123,6 @@ export default function DashboardPage() {
         <p className="panel">読み込み中...</p>
       ) : (
         <div className="grid gap-5">
-          <section className="grid gap-4 sm:grid-cols-3">
-            <Link className="action-primary" href="/study">
-              学習タイマー
-            </Link>
-            <Link className="action-primary bg-ink hover:bg-slate-800" href="/ai/problems">
-              FE問題
-            </Link>
-            <Link className="action-primary bg-emerald-700 hover:bg-emerald-800" href="/flashcards">
-              単語帳
-            </Link>
-          </section>
-
           <section className="grid gap-4 md:grid-cols-4">
             <Stat title="今日" value={dashboard.today_minutes} suffix="分" />
             <Stat title="今週" value={dashboard.week_minutes} suffix="分" />

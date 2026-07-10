@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,7 @@ from app.models.flashcard import Flashcard
 from app.models.user import User
 from app.schemas.common import SUBJECTS
 from app.schemas.flashcard import FlashcardCreate, FlashcardList, FlashcardOut, FlashcardReview, FlashcardUpdate
+from app.services.ai_service import generate_json
 
 router = APIRouter(prefix="/flashcards", tags=["Flashcards"])
 
@@ -85,6 +87,12 @@ def stats_for(cards: list[Flashcard]):
     }
 
 
+class GenerateFlashcards(BaseModel):
+    subject: str
+    count: int = Field(ge=1, le=10)
+    focus: str | None = Field(default=None, max_length=120)
+
+
 @router.get("", response_model=FlashcardList)
 def list_flashcards(
     subject: str | None = Query(None),
@@ -120,6 +128,64 @@ def create_flashcard(payload: FlashcardCreate, db: Session = Depends(get_db), cu
     db.commit()
     db.refresh(row)
     return row
+
+
+@router.post("/generate")
+def generate_flashcards(payload: GenerateFlashcards, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    validate_subject(payload.subject)
+    seed_default_cards(db, current_user.id)
+
+    existing_terms = {
+        term
+        for (term,) in db.execute(
+            select(Flashcard.term).where(Flashcard.user_id == current_user.id, Flashcard.subject == payload.subject)
+        ).all()
+    }
+    data = generate_json(
+        (
+            "あなたは基本情報技術者試験の学習用単語帳を作る講師です。"
+            "科目Aと科目Bで出やすい重要用語を選び、既存用語と重複しない単語カードを作ってください。"
+            "cards配列を持つJSONだけを返してください。各カードには term, definition, exam_point を必ず含めてください。"
+            "definitionは初学者にも分かる短い説明、exam_pointは試験で見るべき観点にしてください。"
+        ),
+        {
+            "subject": payload.subject,
+            "count": payload.count,
+            "focus": payload.focus,
+            "existing_terms": sorted(existing_terms),
+        },
+    )
+    cards = data.get("cards")
+    if not isinstance(cards, list):
+        raise HTTPException(502, "AIが単語カードを返せませんでした。もう一度お試しください。")
+
+    rows = []
+    for item in cards:
+        if not isinstance(item, dict):
+            continue
+        term = str(item.get("term") or "").strip()
+        definition = str(item.get("definition") or "").strip()
+        exam_point = str(item.get("exam_point") or "").strip()
+        if not term or not definition or not exam_point or term in existing_terms:
+            continue
+        existing_terms.add(term)
+        rows.append(
+            Flashcard(
+                user_id=current_user.id,
+                subject=payload.subject,
+                term=term[:80],
+                definition=definition,
+                exam_point=exam_point,
+            )
+        )
+        if len(rows) >= payload.count:
+            break
+
+    if not rows:
+        raise HTTPException(502, "追加できる単語がありませんでした。条件を変えてもう一度お試しください。")
+    db.add_all(rows)
+    db.commit()
+    return {"added": len(rows), "items": rows}
 
 
 @router.put("/{card_id}", response_model=FlashcardOut)

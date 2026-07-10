@@ -191,8 +191,7 @@ export default function Page() {
     <Shell>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-focus">基本情報技術者試験</p>
-          <h1 className="mt-1 text-3xl font-bold text-ink">FE問題</h1>
+          <h1 className="text-3xl font-bold text-ink">FE問題</h1>
         </div>
         <div className="status-pill">3問</div>
       </div>

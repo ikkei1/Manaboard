@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { apiFetch, subjects } from "@/lib/api";
 
@@ -25,22 +25,6 @@ type FlashcardResponse = {
   stats: { total: number; new: number; learning: number; mastered: number };
 };
 
-type FormState = {
-  subject: string;
-  term: string;
-  definition: string;
-  exam_point: string;
-  status: CardStatus;
-};
-
-const emptyForm: FormState = {
-  subject: subjects[0],
-  term: "",
-  definition: "",
-  exam_point: "",
-  status: "new",
-};
-
 const statusOptions: { value: "" | CardStatus; label: string }[] = [
   { value: "", label: "すべて" },
   { value: "new", label: "未習得" },
@@ -63,14 +47,13 @@ export default function FlashcardsPage() {
   const [data, setData] = useState<FlashcardResponse | null>(null);
   const [subject, setSubject] = useState("");
   const [status, setStatus] = useState<"" | CardStatus>("");
-  const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [generateSubject, setGenerateSubject] = useState(subjects[0]);
+  const [generateCount, setGenerateCount] = useState(5);
+  const [generateFocus, setGenerateFocus] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const formRef = useRef<HTMLFormElement | null>(null);
 
   const cards = data?.items ?? [];
   const current = cards[selectedIndex] ?? null;
@@ -82,11 +65,10 @@ export default function FlashcardsPage() {
     return newIndex >= 0 ? newIndex : 0;
   }, [cards]);
 
-  async function load() {
+  async function load(nextSubject = subject, nextStatus = status) {
     const params = new URLSearchParams();
-    if (subject) params.set("subject", subject);
-    if (status) params.set("status", status);
-    if (query.trim()) params.set("q", query.trim());
+    if (nextSubject) params.set("subject", nextSubject);
+    if (nextStatus) params.set("status", nextStatus);
     const response = await apiFetch<FlashcardResponse>(`/flashcards?${params}`);
     setData(response);
     setSelectedIndex(0);
@@ -95,11 +77,35 @@ export default function FlashcardsPage() {
 
   useEffect(() => {
     load().catch((error) => setMessage(error.message));
-  }, [subject, status, query]);
+  }, [subject, status]);
 
   useEffect(() => {
     if (cards.length) setSelectedIndex(priorityCardIndex);
   }, [cards.length, priorityCardIndex]);
+
+  async function generateCards(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await apiFetch<{ added: number }>("/flashcards/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          subject: generateSubject,
+          count: generateCount,
+          focus: generateFocus || null,
+        }),
+      });
+      setSubject(generateSubject);
+      setStatus("");
+      setMessage(`${response.added}語を追加しました`);
+      await load(generateSubject, "");
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function review(remembered: boolean) {
     if (!current) return;
@@ -118,86 +124,57 @@ export default function FlashcardsPage() {
     }
   }
 
-  async function saveCard(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    try {
-      if (editingId) {
-        await apiFetch(`/flashcards/${editingId}`, {
-          method: "PUT",
-          body: JSON.stringify(form),
-        });
-      } else {
-        await apiFetch("/flashcards", {
-          method: "POST",
-          body: JSON.stringify({
-            subject: form.subject,
-            term: form.term,
-            definition: form.definition,
-            exam_point: form.exam_point,
-          }),
-        });
-      }
-      setForm(emptyForm);
-      setEditingId(null);
-      setSubject("");
-      setStatus("");
-      setQuery("");
-      setMessage(editingId ? "更新しました" : "追加しました");
-      await load();
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function removeCard(card: Flashcard) {
-    if (!confirm(`${card.term}を削除しますか？`)) return;
-    await apiFetch(`/flashcards/${card.id}`, { method: "DELETE" });
-    setMessage("削除しました");
-    await load();
-  }
-
   function selectCard(index: number) {
     setSelectedIndex(index);
     setRevealed(false);
   }
 
-  function startEdit(card: Flashcard) {
-    setEditingId(card.id);
-    setForm({
-      subject: card.subject,
-      term: card.term,
-      definition: card.definition,
-      exam_point: card.exam_point,
-      status: card.status,
-    });
-    window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-    setForm(emptyForm);
-  }
-
   return (
     <Shell>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-focus">基本情報技術者試験</p>
-          <h1 className="mt-1 text-3xl font-bold text-ink">単語帳</h1>
-        </div>
-        <div className="status-pill">{data?.stats.total ?? 0}語</div>
+      <div className="mb-5">
+        <h1 className="text-3xl font-bold text-ink">単語帳</h1>
       </div>
-
-      {message && <p className="notice mb-5">{message}</p>}
 
       <section className="mb-5 grid gap-4 sm:grid-cols-4">
         <Stat title="総数" value={data?.stats.total ?? 0} />
         <Stat title="未習得" value={data?.stats.new ?? 0} />
         <Stat title="復習" value={data?.stats.learning ?? 0} />
         <Stat title="習得" value={data?.stats.mastered ?? 0} />
+      </section>
+
+      {message && <p className="notice mb-5">{message}</p>}
+
+      <section className="panel mb-5 grid gap-3">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <select className="field" value={subject} onChange={(event) => setSubject(event.target.value)}>
+            <option value="">すべての分野</option>
+            {subjects.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+          <button
+            className="btn-secondary"
+            onClick={() => {
+              setSubject("");
+              setStatus("");
+            }}
+            type="button"
+          >
+            クリア
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {statusOptions.map((option) => (
+            <button
+              className={`segment-button ${status === option.value ? "segment-on" : "segment-off"}`}
+              key={option.value || "all"}
+              onClick={() => setStatus(option.value)}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="mb-6">
@@ -226,7 +203,7 @@ export default function FlashcardsPage() {
 
               <div className="grid min-h-80 place-items-center rounded-md border border-slate-200 bg-slate-50 p-6 text-center">
                 <div className="w-full max-w-2xl">
-                  <p className="text-sm font-bold text-focus">{current.subject}</p>
+                  <p className="text-sm font-bold text-slate-500">{current.subject}</p>
                   <h2 className="mt-4 text-5xl font-bold text-ink sm:text-6xl">{current.term}</h2>
                   {revealed && (
                     <div className="mt-6 grid gap-3 text-left">
@@ -256,106 +233,34 @@ export default function FlashcardsPage() {
         </div>
       </section>
 
-      <section className="panel mb-5 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-        <select className="field" value={subject} onChange={(event) => setSubject(event.target.value)}>
-          <option value="">すべての分野</option>
-          {subjects.map((item) => (
-            <option key={item}>{item}</option>
-          ))}
-        </select>
-        <input className="field" placeholder="検索" value={query} onChange={(event) => setQuery(event.target.value)} />
-        <button
-          className="btn-secondary"
-          onClick={() => {
-            setSubject("");
-            setStatus("");
-            setQuery("");
-          }}
-          type="button"
-        >
-          クリア
-        </button>
-        <div className="flex flex-wrap gap-2 md:col-span-3">
-          {statusOptions.map((option) => (
-            <button
-              className={`segment-button ${status === option.value ? "segment-on" : "segment-off"}`}
-              key={option.value || "all"}
-              onClick={() => setStatus(option.value)}
-              type="button"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="mb-6 grid gap-3 md:grid-cols-2">
-        {cards.map((card, index) => (
-          <article className={`rounded-md border bg-white p-4 shadow-sm ${selectedIndex === index ? "border-focus" : "border-slate-200"}`} key={card.id}>
-            <div className="flex items-start justify-between gap-3">
-              <button className="min-w-0 text-left" onClick={() => selectCard(index)} type="button">
-                <p className="text-sm font-semibold text-focus">{card.subject} ・ {statusLabels[card.status]}</p>
-                <h3 className="mt-1 text-lg font-bold">{card.term}</h3>
-                <p className="mt-2 line-clamp-2 text-sm text-slate-600">{card.definition}</p>
-              </button>
-              <div className="grid gap-2 text-right">
-                <button className="font-semibold text-focus" onClick={() => startEdit(card)} type="button">
-                  編集
-                </button>
-                <button className="font-semibold text-coral" onClick={() => removeCard(card)} type="button">
-                  削除
-                </button>
-              </div>
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <form className="panel grid gap-4" ref={formRef} onSubmit={saveCard}>
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="section-title mb-0">{editingId ? "編集" : "追加"}</h2>
-          {editingId && (
-            <button className="font-semibold text-slate-500" onClick={cancelEdit} type="button">
-              解除
-            </button>
-          )}
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
+      <form className="panel grid gap-4" onSubmit={generateCards}>
+        <h2 className="section-title mb-0">AIで追加</h2>
+        <div className="grid gap-4 md:grid-cols-[1fr_auto]">
           <label className="grid gap-1">
             <span className="label">分野</span>
-            <select className="field" value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })}>
+            <select className="field" value={generateSubject} onChange={(event) => setGenerateSubject(event.target.value)}>
               {subjects.map((item) => (
                 <option key={item}>{item}</option>
               ))}
             </select>
           </label>
           <label className="grid gap-1">
-            <span className="label">用語</span>
-            <input className="field" required value={form.term} onChange={(event) => setForm({ ...form, term: event.target.value })} />
+            <span className="label">語数</span>
+            <select className="field min-w-28" value={generateCount} onChange={(event) => setGenerateCount(Number(event.target.value))}>
+              {[3, 5, 8, 10].map((count) => (
+                <option key={count} value={count}>
+                  {count}
+                </option>
+              ))}
+            </select>
           </label>
-          <label className="grid gap-1 md:col-span-2">
-            <span className="label">意味</span>
-            <textarea className="field min-h-24" required value={form.definition} onChange={(event) => setForm({ ...form, definition: event.target.value })} />
-          </label>
-          <label className="grid gap-1 md:col-span-2">
-            <span className="label">重点</span>
-            <textarea className="field min-h-20" required value={form.exam_point} onChange={(event) => setForm({ ...form, exam_point: event.target.value })} />
-          </label>
-          {editingId && (
-            <label className="grid gap-1">
-              <span className="label">状態</span>
-              <select className="field" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as CardStatus })}>
-                {statusOptions.slice(1).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
         </div>
-        <button className="btn-primary" disabled={busy}>
-          {editingId ? "更新" : "追加"}
+        <label className="grid gap-1">
+          <span className="label">重点</span>
+          <input className="field" placeholder="例: 計算問題 / セキュリティ用語 / 科目B" value={generateFocus} onChange={(event) => setGenerateFocus(event.target.value)} />
+        </label>
+        <button className="action-primary" disabled={busy}>
+          {busy ? "追加中..." : "単語を追加"}
         </button>
       </form>
     </Shell>

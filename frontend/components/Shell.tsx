@@ -17,8 +17,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <Link href="/dashboard" className="text-xl font-bold text-ink">
-            Manaboard
+          <Link
+            href="/dashboard"
+            className="flex h-10 w-44 shrink-0 items-center overflow-hidden rounded-md bg-white"
+            aria-label="Manaboard ホーム"
+          >
+            <img alt="Manaboard" className="h-full w-full object-cover" src="/brand/manaboard-logo.png" />
           </Link>
           <nav className="flex flex-wrap items-center gap-1 text-sm font-semibold">
             {links.map(([href, label]) => (
