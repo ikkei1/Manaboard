@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Icon, type IconName } from "@/components/Icon";
 import { Shell } from "@/components/Shell";
 import { apiFetch, subjects } from "@/lib/api";
 
@@ -129,59 +130,80 @@ export default function FlashcardsPage() {
     setRevealed(false);
   }
 
+  function resetFilters() {
+    setSubject("");
+    setStatus("");
+  }
+
   return (
     <Shell>
-      <div className="mb-5">
-        <h1 className="text-3xl font-bold text-ink">単語帳</h1>
+      <div className="mb-4">
+        <div>
+          <h1 className="text-3xl font-bold text-ink">単語帳</h1>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <StatChip icon="cards" title="総数" value={data?.stats.total ?? 0} />
+            <StatChip icon="target" title="未習得" value={data?.stats.new ?? 0} />
+            <StatChip icon="clock" title="復習" value={data?.stats.learning ?? 0} />
+            <StatChip icon="check" title="習得" value={data?.stats.mastered ?? 0} />
+          </div>
+        </div>
       </div>
-
-      <section className="mb-5 grid gap-4 sm:grid-cols-4">
-        <Stat title="総数" value={data?.stats.total ?? 0} />
-        <Stat title="未習得" value={data?.stats.new ?? 0} />
-        <Stat title="復習" value={data?.stats.learning ?? 0} />
-        <Stat title="習得" value={data?.stats.mastered ?? 0} />
-      </section>
 
       {message && <p className="notice mb-5">{message}</p>}
 
-      <section className="panel mb-5 grid gap-3">
-        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-          <select className="field" value={subject} onChange={(event) => setSubject(event.target.value)}>
-            <option value="">すべての分野</option>
-            {subjects.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-          <button
-            className="btn-secondary"
-            onClick={() => {
-              setSubject("");
-              setStatus("");
-            }}
-            type="button"
-          >
-            クリア
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {statusOptions.map((option) => (
-            <button
-              className={`segment-button ${status === option.value ? "segment-on" : "segment-off"}`}
-              key={option.value || "all"}
-              onClick={() => setStatus(option.value)}
-              type="button"
-            >
-              {option.label}
+      <details className="mb-5">
+        <summary className="btn-secondary ml-auto w-fit cursor-pointer list-none gap-2">
+          <Icon name="settings" size={19} />
+          表示設定
+        </summary>
+        <section className="panel mt-3 grid gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="section-title mb-0 inline-flex items-center gap-2">
+              <Icon name="filter" size={20} />
+              表示設定
+            </h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+            <label className="grid gap-1">
+              <span className="label">分野</span>
+              <select className="field" value={subject} onChange={(event) => setSubject(event.target.value)}>
+                <option value="">すべての分野</option>
+                {subjects.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <button className="btn-secondary self-end gap-2" onClick={resetFilters} type="button">
+              <Icon name="x" size={18} />
+              初期化
             </button>
-          ))}
-        </div>
-      </section>
+          </div>
+          <div>
+            <p className="label">状態</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {statusOptions.map((option) => (
+                <button
+                  className={`segment-button ${status === option.value ? "segment-on" : "segment-off"}`}
+                  key={option.value || "all"}
+                  onClick={() => setStatus(option.value)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      </details>
 
       <section className="mb-6">
         <div className="panel grid min-h-[460px] gap-5">
           {!current ? (
             <div className="grid place-items-center rounded-md border border-slate-200 bg-slate-50 text-center">
-              <p className="text-xl font-bold text-slate-500">なし</p>
+              <div>
+                <Icon className="mx-auto text-slate-400" name="cards" size={46} />
+                <p className="mt-3 text-xl font-bold text-slate-500">なし</p>
+              </div>
             </div>
           ) : (
             <>
@@ -192,11 +214,13 @@ export default function FlashcardsPage() {
                   <span className="status-pill">{accuracy(current)}%</span>
                 </div>
                 <div className="flex gap-2">
-                  <button className="btn-secondary" disabled={selectedIndex <= 0} onClick={() => selectCard(selectedIndex - 1)} type="button">
+                  <button className="btn-secondary gap-2" disabled={selectedIndex <= 0} onClick={() => selectCard(selectedIndex - 1)} type="button">
+                    <Icon name="chevronLeft" size={18} />
                     前へ
                   </button>
-                  <button className="btn-secondary" disabled={selectedIndex >= cards.length - 1} onClick={() => selectCard(selectedIndex + 1)} type="button">
+                  <button className="btn-secondary gap-2" disabled={selectedIndex >= cards.length - 1} onClick={() => selectCard(selectedIndex + 1)} type="button">
                     次へ
+                    <Icon name="chevronRight" size={18} />
                   </button>
                 </div>
               </div>
@@ -215,15 +239,18 @@ export default function FlashcardsPage() {
               </div>
 
               {!revealed ? (
-                <button className="action-primary" onClick={() => setRevealed(true)} type="button">
+                <button className="action-primary gap-2" onClick={() => setRevealed(true)} type="button">
+                  <Icon name="book" size={22} />
                   答えを見る
                 </button>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <button className="action-danger" disabled={busy} onClick={() => review(false)} type="button">
+                  <button className="action-danger gap-2" disabled={busy} onClick={() => review(false)} type="button">
+                    <Icon name="clock" size={22} />
                     苦手
                   </button>
-                  <button className="action-primary bg-emerald-700 hover:bg-emerald-800" disabled={busy} onClick={() => review(true)} type="button">
+                  <button className="action-primary gap-2 bg-emerald-700 hover:bg-emerald-800" disabled={busy} onClick={() => review(true)} type="button">
+                    <Icon name="check" size={22} />
                     覚えた
                   </button>
                 </div>
@@ -234,7 +261,10 @@ export default function FlashcardsPage() {
       </section>
 
       <form className="panel grid gap-4" onSubmit={generateCards}>
-        <h2 className="section-title mb-0">AIで追加</h2>
+        <h2 className="section-title mb-0 inline-flex items-center gap-2">
+          <Icon name="spark" size={21} />
+          AIで追加
+        </h2>
         <div className="grid gap-4 md:grid-cols-[1fr_auto]">
           <label className="grid gap-1">
             <span className="label">分野</span>
@@ -259,7 +289,8 @@ export default function FlashcardsPage() {
           <span className="label">重点</span>
           <input className="field" placeholder="例: 計算問題 / セキュリティ用語 / 科目B" value={generateFocus} onChange={(event) => setGenerateFocus(event.target.value)} />
         </label>
-        <button className="action-primary" disabled={busy}>
+        <button className="action-primary gap-2" disabled={busy}>
+          <Icon name="plus" size={22} />
           {busy ? "追加中..." : "単語を追加"}
         </button>
       </form>
@@ -267,11 +298,12 @@ export default function FlashcardsPage() {
   );
 }
 
-function Stat({ title, value }: { title: string; value: number }) {
+function StatChip({ icon, title, value }: { icon: IconName; title: string; value: number }) {
   return (
-    <div className="panel">
-      <p className="text-sm font-semibold text-slate-500">{title}</p>
-      <p className="mt-2 text-3xl font-bold">{value}</p>
+    <div className="inline-flex min-h-12 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <Icon className="text-focus" name={icon} size={19} />
+      <span className="text-sm font-semibold text-slate-500">{title}</span>
+      <span className="text-xl font-bold text-ink">{value}</span>
     </div>
   );
 }

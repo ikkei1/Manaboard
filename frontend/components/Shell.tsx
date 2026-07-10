@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Icon, type IconName } from "@/components/Icon";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const links = [
-    ["/dashboard", "ホーム"],
-    ["/study", "学習記録"],
-    ["/ai/problems", "FE問題"],
-    ["/flashcards", "単語帳"],
-    ["/ocr", "画像解説"],
+  const links: { href: string; label: string; icon: IconName }[] = [
+    { href: "/dashboard", label: "ホーム", icon: "home" },
+    { href: "/study", label: "学習記録", icon: "timer" },
+    { href: "/ai/problems", label: "FE問題", icon: "problems" },
+    { href: "/flashcards", label: "単語帳", icon: "cards" },
+    { href: "/ocr", label: "画像解説", icon: "image" },
   ];
 
   return (
@@ -25,14 +26,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <img alt="Manaboard" className="h-full w-full object-cover" src="/brand/manaboard-logo.png" />
           </Link>
           <nav className="flex flex-wrap items-center gap-1 text-sm font-semibold">
-            {links.map(([href, label]) => (
+            {links.map(({ href, label, icon }) => (
               <Link
                 key={href}
-                className={`rounded-md px-3 py-2 transition ${
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 transition ${
                   pathname === href ? "bg-focus text-white" : "text-slate-700 hover:bg-slate-100"
                 }`}
                 href={href}
               >
+                <Icon name={icon} size={18} />
                 {label}
               </Link>
             ))}
