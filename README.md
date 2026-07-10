@@ -7,7 +7,8 @@ Manaboard is a local study support app focused on Japan's Fundamental Informatio
 - Local single-user mode without login
 - Timer-based study logging
 - Fundamental Information Technology Engineer Examination dashboard with study planning
-- AI practice problem generation for 3-question morning-exam style review
+- FE flashcards with review status tracking
+- AI practice problem generation for 3-question FE Section A/B review
 - Answer recording for generated problems
 - Image-based problem explanation with Gemini Vision
 - Tesseract OCR used only as supporting information for image analysis

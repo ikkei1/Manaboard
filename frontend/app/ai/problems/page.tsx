@@ -42,10 +42,10 @@ const initialForm: FormState = {
 };
 
 const styles = [
-  ["exam", "午前対策"],
+  ["exam", "科目A"],
   ["weakness", "苦手"],
   ["speed", "暗記"],
-  ["concept", "手順"],
+  ["concept", "科目B"],
 ];
 
 const difficulties = [

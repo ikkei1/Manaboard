@@ -125,12 +125,15 @@ export default function DashboardPage() {
         <p className="panel">読み込み中...</p>
       ) : (
         <div className="grid gap-5">
-          <section className="grid gap-4 sm:grid-cols-2">
+          <section className="grid gap-4 sm:grid-cols-3">
             <Link className="action-primary" href="/study">
               学習タイマー
             </Link>
             <Link className="action-primary bg-ink hover:bg-slate-800" href="/ai/problems">
               FE問題
+            </Link>
+            <Link className="action-primary bg-emerald-700 hover:bg-emerald-800" href="/flashcards">
+              単語帳
             </Link>
           </section>
 

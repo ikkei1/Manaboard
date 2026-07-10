@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import dashboard, goals, learning_ai, study
+from app.api import dashboard, flashcards, goals, learning_ai, study
 from app.db.session import engine
 from app.models import Base
 
@@ -23,6 +23,7 @@ app.include_router(study.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(goals.router, prefix="/api")
 app.include_router(learning_ai.router, prefix="/api")
+app.include_router(flashcards.router, prefix="/api")
 
 
 @app.get("/health")
