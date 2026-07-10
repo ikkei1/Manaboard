@@ -9,8 +9,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
     ["/dashboard", "ホーム"],
     ["/study", "学習記録"],
     ["/ai/problems", "FE問題"],
-    ["/analysis", "分析"],
-    ["/schedule", "計画"],
     ["/ocr", "画像解説"],
   ];
 

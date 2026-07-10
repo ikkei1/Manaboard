@@ -1,15 +1,14 @@
 # Manaboard
 
-Manaboard is a local study support app focused on Japan's Fundamental Information Technology Engineer Examination. It records study logs, generates practice problems, analyzes weak areas, creates schedules, and explains problems from images.
+Manaboard is a local study support app focused on Japan's Fundamental Information Technology Engineer Examination. It records study time with a timer, generates practice problems, manages a dashboard-based study plan, and explains problems from images.
 
 ## Features
 
 - Local single-user mode without login
-- Study log CRUD
-- Fundamental Information Technology Engineer Examination dashboard
-- AI practice problem generation for morning-exam style review
-- Answer recording and weak-area analysis
-- Study schedule generation
+- Timer-based study logging
+- Fundamental Information Technology Engineer Examination dashboard with study planning
+- AI practice problem generation for 3-question morning-exam style review
+- Answer recording for generated problems
 - Image-based problem explanation with Gemini Vision
 - Tesseract OCR used only as supporting information for image analysis
 

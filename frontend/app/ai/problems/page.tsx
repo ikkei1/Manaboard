@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Shell } from "@/components/Shell";
-import { apiFetch, subjects } from "@/lib/api";
+import { apiFetch, subjects, themePresets } from "@/lib/api";
 
 type Problem = {
   id?: string;
@@ -23,12 +23,8 @@ type FormState = {
   subject: string;
   unit: string;
   difficulty: string;
-  question_count: number;
   format: string;
   question_style: string;
-  purpose: string;
-  focus_points: string;
-  excluded_topics: string;
   include_hints: boolean;
   include_steps: boolean;
   include_similar_problem: boolean;
@@ -36,35 +32,34 @@ type FormState = {
 
 const initialForm: FormState = {
   subject: "テクノロジ系",
-  unit: "",
+  unit: themePresets["テクノロジ系"][0],
   difficulty: "normal",
-  question_count: 5,
   format: "multiple_choice",
   question_style: "exam",
-  purpose: "",
-  focus_points: "",
-  excluded_topics: "",
   include_hints: true,
   include_steps: true,
   include_similar_problem: false,
 };
 
-const presets = [
-  { label: "午前対策", value: { question_style: "exam", difficulty: "normal", question_count: 5, include_steps: true } },
-  { label: "苦手克服", value: { question_style: "weakness", difficulty: "easy", question_count: 4, include_hints: true } },
-  { label: "暗記チェック", value: { question_style: "speed", difficulty: "easy", question_count: 8, include_steps: false } },
-  { label: "計算・手順", value: { question_style: "concept", difficulty: "normal", question_count: 3, include_steps: true } },
+const styles = [
+  ["exam", "午前対策"],
+  ["weakness", "苦手"],
+  ["speed", "暗記"],
+  ["concept", "手順"],
 ];
 
-const difficultyLabels: Record<string, string> = { easy: "基礎", normal: "標準", hard: "応用" };
-const formatLabels: Record<string, string> = {
-  multiple_choice: "選択式",
-  written: "記述式",
-  fill_blank: "穴埋め",
-  true_false: "正誤判定",
-};
+const difficulties = [
+  ["easy", "基礎"],
+  ["normal", "標準"],
+  ["hard", "応用"],
+];
 
-const mistakeTypes = ["用語の理解不足", "計算ミス", "読み取りミス", "選択肢の迷い", "時間不足"];
+const formats = [
+  ["multiple_choice", "選択"],
+  ["fill_blank", "穴埋め"],
+  ["true_false", "正誤"],
+  ["written", "記述"],
+];
 
 function stepsToArray(steps: Problem["steps"]) {
   if (!steps) return [];
@@ -95,19 +90,14 @@ export default function Page() {
   const [message, setMessage] = useState("");
   const [openAnswer, setOpenAnswer] = useState<Record<number, boolean>>({});
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [mistakes, setMistakes] = useState<Record<number, string>>({});
   const [results, setResults] = useState<Record<number, boolean>>({});
-
-  const filled = useMemo(() => {
-    return [form.purpose, form.focus_points, form.excluded_topics].filter(Boolean).length;
-  }, [form]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function applyPreset(value: Partial<FormState>) {
-    setForm((current) => ({ ...current, ...value }));
+  function updateSubject(subject: string) {
+    setForm((current) => ({ ...current, subject, unit: themePresets[subject][0] }));
   }
 
   async function generate(event?: FormEvent) {
@@ -115,45 +105,25 @@ export default function Page() {
     setBusy(true);
     setMessage("");
     try {
-      const payload = {
-        ...form,
-        purpose: form.purpose || null,
-        focus_points: form.focus_points || null,
-        excluded_topics: form.excluded_topics || null,
-      };
       const response = await apiFetch<{ problems: Problem[] }>("/ai/problems/generate", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...form,
+          question_count: 3,
+          purpose: null,
+          focus_points: null,
+          excluded_topics: null,
+        }),
       });
       setProblems(response.problems);
       setOpenAnswer({});
       setAnswers({});
-      setMistakes({});
       setResults({});
-      setMessage(`${response.problems.length}問を生成しました。解いたら「分析へ記録」を押してください。`);
+      setMessage("3問生成しました");
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function saveAll() {
-    try {
-      const unsaved = problems.filter((problem) => !problem.id);
-      if (!unsaved.length) {
-        setMessage("すべて保存済みです");
-        return;
-      }
-      const response = await apiFetch<{ ids: string[] }>("/ai/problems/save", {
-        method: "POST",
-        body: JSON.stringify(unsaved.map(savePayload)),
-      });
-      let idIndex = 0;
-      setProblems((current) => current.map((problem) => (problem.id ? problem : { ...problem, id: response.ids[idIndex++] })));
-      setMessage("生成した問題を保存しました");
-    } catch (error) {
-      setMessage((error as Error).message);
     }
   }
 
@@ -176,192 +146,96 @@ export default function Page() {
       setMessage("回答を入力してください");
       return;
     }
+    const problemId = await ensureSaved(index);
+    const isCorrect = normalizeAnswer(userAnswer) === normalizeAnswer(problem.answer);
+    await apiFetch(`/problems/${problemId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ user_answer: userAnswer, is_correct: isCorrect, mistake_type: isCorrect ? null : "復習対象" }),
+    });
+    setResults((current) => ({ ...current, [index]: isCorrect }));
+    setOpenAnswer((current) => ({ ...current, [index]: true }));
+    setMessage(isCorrect ? "正解として保存しました" : "復習対象として保存しました");
+  }
 
-    try {
-      const problemId = await ensureSaved(index);
-      const isCorrect = normalizeAnswer(userAnswer) === normalizeAnswer(problem.answer);
-      await apiFetch(`/problems/${problemId}/answer`, {
-        method: "POST",
-        body: JSON.stringify({
-          user_answer: userAnswer,
-          is_correct: isCorrect,
-          mistake_type: isCorrect ? null : mistakes[index] || "未分類",
-        }),
-      });
-      setResults((current) => ({ ...current, [index]: isCorrect }));
-      setOpenAnswer((current) => ({ ...current, [index]: true }));
-      setMessage(isCorrect ? "正解として分析に記録しました" : "不正解として分析に記録しました。解説を確認しましょう。");
-    } catch (error) {
-      setMessage((error as Error).message);
+  async function saveAll() {
+    const unsaved = problems.filter((problem) => !problem.id);
+    if (!unsaved.length) {
+      setMessage("すべて保存済みです");
+      return;
     }
+    const response = await apiFetch<{ ids: string[] }>("/ai/problems/save", {
+      method: "POST",
+      body: JSON.stringify(unsaved.map(savePayload)),
+    });
+    let idIndex = 0;
+    setProblems((current) => current.map((problem) => (problem.id ? problem : { ...problem, id: response.ids[idIndex++] })));
+    setMessage("保存しました");
   }
 
   async function loadSavedProblems() {
-    try {
-      const saved = await apiFetch<Problem[]>("/ai/problems");
-      setProblems(saved);
-      setOpenAnswer({});
-      setAnswers({});
-      setMistakes({});
-      setResults({});
-      setMessage(saved.length ? "保存済み問題を読み込みました" : "保存済み問題はまだありません");
-    } catch (error) {
-      setMessage((error as Error).message);
-    }
+    const saved = await apiFetch<Problem[]>("/ai/problems");
+    setProblems(saved);
+    setOpenAnswer({});
+    setAnswers({});
+    setResults({});
+    setMessage(saved.length ? "保存済み問題を読み込みました" : "保存済み問題はありません");
   }
 
   async function copyProblem(problem: Problem) {
     const choices = problem.choices?.map((choice, index) => `${index + 1}. ${choice}`).join("\n") ?? "";
-    const text = [`問題: ${problem.question}`, choices, `答え: ${problem.answer}`, `解説: ${problem.explanation}`]
-      .filter(Boolean)
-      .join("\n\n");
-    await navigator.clipboard.writeText(text);
-    setMessage("問題をコピーしました");
+    await navigator.clipboard.writeText([`問題: ${problem.question}`, choices, `答え: ${problem.answer}`, `解説: ${problem.explanation}`].filter(Boolean).join("\n\n"));
+    setMessage("コピーしました");
   }
 
   return (
     <Shell>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-focus">基本情報技術者試験</p>
-          <h1 className="mt-1 text-3xl font-bold text-ink">午前問題を作って、そのまま分析へ記録</h1>
-          <p className="mt-2 text-slate-600">回答を入力して「分析へ記録」を押すと、正答率や苦手分野に反映されます。</p>
+          <h1 className="mt-1 text-3xl font-bold text-ink">FE問題</h1>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
-          追加条件 {filled}/3
-        </div>
+        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700">3問固定</div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
-        <form className="panel h-fit space-y-5" onSubmit={generate}>
-          <div>
-            <h2 className="section-title">生成条件</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              <label>
-                <span className="label">分野</span>
-                <select className="field mt-1" value={form.subject} onChange={(e) => update("subject", e.target.value)}>
-                  {subjects.map((subject) => (
-                    <option key={subject}>{subject}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span className="label">テーマ</span>
-                <input
-                  className="field mt-1"
-                  required
-                  placeholder="例: 2進数、SQL、暗号化、稼働率"
-                  value={form.unit}
-                  onChange={(e) => update("unit", e.target.value)}
-                />
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <p className="label">プリセット</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {presets.map((preset) => (
-                <button className="chip" key={preset.label} type="button" onClick={() => applyPreset(preset.value)}>
-                  {preset.label}
-                </button>
+      <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
+        <form className="panel h-fit space-y-4" onSubmit={generate}>
+          <label>
+            <span className="label">分野</span>
+            <select className="field mt-1" value={form.subject} onChange={(event) => updateSubject(event.target.value)}>
+              {subjects.map((subject) => (
+                <option key={subject}>{subject}</option>
               ))}
-            </div>
+            </select>
+          </label>
+
+          <label>
+            <span className="label">テーマ</span>
+            <select className="field mt-1" value={form.unit} onChange={(event) => update("unit", event.target.value)}>
+              {themePresets[form.subject].map((theme) => (
+                <option key={theme}>{theme}</option>
+              ))}
+            </select>
+          </label>
+
+          <ToggleGroup label="ねらい" value={form.question_style} items={styles} onChange={(value) => update("question_style", value)} />
+          <ToggleGroup label="難易度" value={form.difficulty} items={difficulties} onChange={(value) => update("difficulty", value)} />
+          <ToggleGroup label="形式" value={form.format} items={formats} onChange={(value) => update("format", value)} />
+
+          <div className="grid grid-cols-3 gap-2">
+            <ToggleButton active={form.include_hints} onClick={() => update("include_hints", !form.include_hints)}>
+              ヒント
+            </ToggleButton>
+            <ToggleButton active={form.include_steps} onClick={() => update("include_steps", !form.include_steps)}>
+              手順
+            </ToggleButton>
+            <ToggleButton active={form.include_similar_problem} onClick={() => update("include_similar_problem", !form.include_similar_problem)}>
+              類題
+            </ToggleButton>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label>
-              <span className="label">難易度</span>
-              <select className="field mt-1" value={form.difficulty} onChange={(e) => update("difficulty", e.target.value)}>
-                <option value="easy">基礎</option>
-                <option value="normal">標準</option>
-                <option value="hard">応用</option>
-              </select>
-            </label>
-            <label>
-              <span className="label">問題数</span>
-              <input
-                className="field mt-1"
-                type="number"
-                min="1"
-                max="10"
-                value={form.question_count}
-                onChange={(e) => update("question_count", Number(e.target.value))}
-              />
-            </label>
-            <label>
-              <span className="label">形式</span>
-              <select className="field mt-1" value={form.format} onChange={(e) => update("format", e.target.value)}>
-                <option value="multiple_choice">選択式</option>
-                <option value="written">記述式</option>
-                <option value="fill_blank">穴埋め</option>
-                <option value="true_false">正誤判定</option>
-              </select>
-            </label>
-            <label>
-              <span className="label">出題ねらい</span>
-              <select className="field mt-1" value={form.question_style} onChange={(e) => update("question_style", e.target.value)}>
-                <option value="standard">標準演習</option>
-                <option value="exam">午前対策</option>
-                <option value="weakness">苦手克服</option>
-                <option value="speed">短時間演習</option>
-                <option value="concept">考え方重視</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="space-y-3">
-            <label>
-              <span className="label">学習目的</span>
-              <textarea
-                className="field mt-1 min-h-20"
-                placeholder="例: 過去問でよく出る考え方を確認したい"
-                value={form.purpose}
-                onChange={(e) => update("purpose", e.target.value)}
-              />
-            </label>
-            <label>
-              <span className="label">重点ポイント</span>
-              <input
-                className="field mt-1"
-                placeholder="例: 用語の違い、計算手順、ひっかけ選択肢"
-                value={form.focus_points}
-                onChange={(e) => update("focus_points", e.target.value)}
-              />
-            </label>
-            <label>
-              <span className="label">避けたい内容</span>
-              <input
-                className="field mt-1"
-                placeholder="例: 午後問題レベル、未学習のアルゴリズム"
-                value={form.excluded_topics}
-                onChange={(e) => update("excluded_topics", e.target.value)}
-              />
-            </label>
-          </div>
-
-          <div className="grid gap-2 rounded-md bg-slate-50 p-3">
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input checked={form.include_hints} type="checkbox" onChange={(e) => update("include_hints", e.target.checked)} />
-              ヒントを付ける
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input checked={form.include_steps} type="checkbox" onChange={(e) => update("include_steps", e.target.checked)} />
-              考え方・計算手順を詳しくする
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input
-                checked={form.include_similar_problem}
-                type="checkbox"
-                onChange={(e) => update("include_similar_problem", e.target.checked)}
-              />
-              類題も作る
-            </label>
-          </div>
-
-          <div className="flex gap-3">
-            <button className="btn-primary flex-1" disabled={busy} type="submit">
-              {busy ? "生成中..." : "問題を生成"}
+          <div className="grid grid-cols-[1fr_auto] gap-3">
+            <button className="btn-primary" disabled={busy}>
+              {busy ? "生成中..." : "生成"}
             </button>
             <button className="btn-secondary" type="button" onClick={loadSavedProblems}>
               保存済み
@@ -370,18 +244,12 @@ export default function Page() {
         </form>
 
         <section>
-          <div className="panel mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="panel mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold">生成結果・解答</h2>
-              <p className="text-sm text-slate-600">
-                {problems.length
-                  ? `${form.subject} / ${form.unit || "保存済み問題"} / ${difficultyLabels[form.difficulty] ?? ""} / ${
-                      formatLabels[form.format] ?? ""
-                    }`
-                  : "問題を生成するか、保存済み問題を読み込んでください"}
-              </p>
+              <h2 className="text-lg font-bold">{form.subject} / {form.unit}</h2>
+              <p className="text-sm text-slate-500">選択肢を押すか、回答欄に入力できます。</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2">
               <button className="btn-secondary" disabled={!problems.length || busy} onClick={() => generate()} type="button">
                 再生成
               </button>
@@ -392,27 +260,14 @@ export default function Page() {
           </div>
 
           {message && <p className="notice">{message}</p>}
-
-          {!problems.length && (
-            <div className="panel mt-4">
-              <h3 className="font-bold">使い方</h3>
-              <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600">
-                <li>左側で条件を入力して問題を生成します。</li>
-                <li>選択肢を押すか、回答欄に答えを入力します。</li>
-                <li>「分析へ記録」を押すと、正答率と苦手分析に反映されます。</li>
-                <li>保存済み問題も読み込んで、あとから解き直せます。</li>
-              </ol>
-            </div>
-          )}
+          {!problems.length && <p className="panel text-slate-500">条件を選んで生成してください。</p>}
 
           <div className="mt-5 grid gap-4">
             {problems.map((problem, index) => (
               <article className="panel" key={`${problem.id ?? problem.question}-${index}`}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-focus">
-                      問題 {index + 1} / {problem.subject} / {problem.unit}
-                    </p>
+                    <p className="text-sm font-semibold text-focus">問題 {index + 1} / {problem.unit}</p>
                     <h3 className="mt-2 text-lg font-bold leading-relaxed">{problem.question}</h3>
                   </div>
                   <button className="btn-secondary shrink-0" onClick={() => copyProblem(problem)} type="button">
@@ -439,51 +294,28 @@ export default function Page() {
 
                 {problem.hint && (
                   <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-                    <span className="font-bold">ヒント: </span>
-                    {problem.hint}
+                    <b>ヒント: </b>{problem.hint}
                   </div>
                 )}
 
                 <div className="mt-4 grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-                  <label>
-                    <span className="label">あなたの回答</span>
-                    <input
-                      className="field mt-1"
-                      placeholder="ここに答えを入力"
-                      value={answers[index] ?? ""}
-                      onChange={(e) => setAnswers((current) => ({ ...current, [index]: e.target.value }))}
-                    />
-                  </label>
-                  <label>
-                    <span className="label">間違えた場合の理由</span>
-                    <select
-                      className="field mt-1"
-                      value={mistakes[index] ?? ""}
-                      onChange={(e) => setMistakes((current) => ({ ...current, [index]: e.target.value }))}
-                    >
-                      <option value="">未分類</option>
-                      {mistakeTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <input
+                    className="field"
+                    placeholder="回答"
+                    value={answers[index] ?? ""}
+                    onChange={(event) => setAnswers((current) => ({ ...current, [index]: event.target.value }))}
+                  />
                   <div className="flex flex-wrap gap-2">
                     <button className="btn-primary" onClick={() => submitAnswer(index)} type="button">
-                      分析へ記録
+                      採点して保存
                     </button>
-                    <button
-                      className="btn-secondary"
-                      type="button"
-                      onClick={() => setOpenAnswer((current) => ({ ...current, [index]: !current[index] }))}
-                    >
-                      {openAnswer[index] ? "答えを隠す" : "答えを見る"}
+                    <button className="btn-secondary" type="button" onClick={() => setOpenAnswer((current) => ({ ...current, [index]: !current[index] }))}>
+                      {openAnswer[index] ? "隠す" : "答え"}
                     </button>
                   </div>
                   {index in results && (
                     <p className={`text-sm font-bold ${results[index] ? "text-emerald-700" : "text-rose-700"}`}>
-                      {results[index] ? "正解として記録済みです" : "不正解として記録済みです"}
+                      {results[index] ? "正解" : "復習対象"}
                     </p>
                   )}
                 </div>
@@ -499,12 +331,7 @@ export default function Page() {
                         ))}
                       </ol>
                     )}
-                    {problem.similar_problem && (
-                      <div className="mt-3 rounded-md bg-white p-3 text-sm">
-                        <span className="font-bold">類題: </span>
-                        {problem.similar_problem}
-                      </div>
-                    )}
+                    {problem.similar_problem && <div className="mt-3 rounded-md bg-white p-3 text-sm"><b>類題: </b>{problem.similar_problem}</div>}
                   </div>
                 )}
               </article>
@@ -513,5 +340,34 @@ export default function Page() {
         </section>
       </div>
     </Shell>
+  );
+}
+
+function ToggleGroup({ label, value, items, onChange }: { label: string; value: string; items: string[][]; onChange: (value: string) => void }) {
+  return (
+    <div>
+      <p className="label">{label}</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {items.map(([itemValue, itemLabel]) => (
+          <ToggleButton active={value === itemValue} key={itemValue} onClick={() => onChange(itemValue)}>
+            {itemLabel}
+          </ToggleButton>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ToggleButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      className={`rounded-md border px-3 py-2 text-sm font-bold transition ${
+        active ? "border-focus bg-focus text-white" : "border-slate-200 bg-white text-slate-700 hover:border-focus"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   );
 }
