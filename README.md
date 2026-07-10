@@ -1,13 +1,13 @@
 # Manaboard
 
-Manaboard is a local study support app for recording study logs, generating practice problems, analyzing weak areas, creating schedules, and explaining problems from images.
+Manaboard is a local study support app focused on Japan's Fundamental Information Technology Engineer Examination. It records study logs, generates practice problems, analyzes weak areas, creates schedules, and explains problems from images.
 
 ## Features
 
-- User registration and login
+- Local single-user mode without login
 - Study log CRUD
-- Goal management
-- AI practice problem generation
+- Fundamental Information Technology Engineer Examination dashboard
+- AI practice problem generation for morning-exam style review
 - Answer recording and weak-area analysis
 - Study schedule generation
 - Image-based problem explanation with Gemini Vision
@@ -20,7 +20,7 @@ Manaboard is a local study support app for recording study logs, generating prac
 - Database: PostgreSQL
 - AI: Google Gemini API
 - OCR: Tesseract
-- Runtime: Docker Compose
+- Runtime: Docker Compose with one app container and one database container
 
 ## Setup
 
@@ -37,6 +37,11 @@ GEMINI_MODEL=gemini-3.5-flash
 ```bash
 docker compose up -d --build
 ```
+
+Docker starts:
+
+- `app`: Next.js frontend and FastAPI backend
+- `db`: PostgreSQL database
 
 ## URLs
 

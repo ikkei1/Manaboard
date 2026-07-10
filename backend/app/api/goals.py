@@ -23,7 +23,7 @@ def list_goals(db: Session = Depends(get_db), current_user: User = Depends(get_c
 def create_goal(payload: GoalCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     exists = db.scalar(select(Goal).where(Goal.user_id == current_user.id, Goal.subject == payload.subject))
     if exists:
-        raise HTTPException(status_code=400, detail="この教科の目標は既に登録されています")
+        raise HTTPException(status_code=400, detail="この分野の目標は既に登録されています")
     goal = Goal(user_id=current_user.id, **payload.model_dump())
     db.add(goal)
     db.commit()

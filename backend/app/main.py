@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, dashboard, goals, learning_ai, study
+from app.api import dashboard, goals, learning_ai, study
 from app.db.session import engine
 from app.models import Base
 
@@ -19,7 +19,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(auth.router, prefix="/api")
 app.include_router(study.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(goals.router, prefix="/api")

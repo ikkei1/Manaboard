@@ -16,8 +16,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-  backend:
-    build: ./backend
+  app:
+    build: .
     environment:
       DATABASE_URL: postgresql+psycopg://manaboard:manaboard@db:5432/manaboard
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
@@ -25,24 +25,17 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
     ports:
+      - "3000:3000"
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - ./backend/app:/app/app
-  frontend:
-    build: ./frontend
-    environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      - ./backend/app:/app/backend/app
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+      - /app/frontend/.next
 volumes:
   postgres_data:

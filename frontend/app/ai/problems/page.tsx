@@ -35,12 +35,12 @@ type FormState = {
 };
 
 const initialForm: FormState = {
-  subject: "数学",
+  subject: "テクノロジ系",
   unit: "",
   difficulty: "normal",
-  question_count: 3,
+  question_count: 5,
   format: "multiple_choice",
-  question_style: "standard",
+  question_style: "exam",
   purpose: "",
   focus_points: "",
   excluded_topics: "",
@@ -50,13 +50,13 @@ const initialForm: FormState = {
 };
 
 const presets = [
-  { label: "定期テスト", value: { question_style: "exam", difficulty: "normal", question_count: 5, include_steps: true } },
+  { label: "午前対策", value: { question_style: "exam", difficulty: "normal", question_count: 5, include_steps: true } },
   { label: "苦手克服", value: { question_style: "weakness", difficulty: "easy", question_count: 4, include_hints: true } },
-  { label: "スピード練習", value: { question_style: "speed", difficulty: "easy", question_count: 8, include_steps: false } },
-  { label: "考え方重視", value: { question_style: "concept", difficulty: "normal", question_count: 3, include_steps: true } },
+  { label: "暗記チェック", value: { question_style: "speed", difficulty: "easy", question_count: 8, include_steps: false } },
+  { label: "計算・手順", value: { question_style: "concept", difficulty: "normal", question_count: 3, include_steps: true } },
 ];
 
-const difficultyLabels: Record<string, string> = { easy: "やさしい", normal: "標準", hard: "発展" };
+const difficultyLabels: Record<string, string> = { easy: "基礎", normal: "標準", hard: "応用" };
 const formatLabels: Record<string, string> = {
   multiple_choice: "選択式",
   written: "記述式",
@@ -64,7 +64,7 @@ const formatLabels: Record<string, string> = {
   true_false: "正誤判定",
 };
 
-const mistakeTypes = ["計算ミス", "読み取りミス", "知識不足", "考え方の混乱", "時間不足"];
+const mistakeTypes = ["用語の理解不足", "計算ミス", "読み取りミス", "選択肢の迷い", "時間不足"];
 
 function stepsToArray(steps: Problem["steps"]) {
   if (!steps) return [];
@@ -223,9 +223,9 @@ export default function Page() {
     <Shell>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-focus">AI問題生成</p>
-          <h1 className="mt-1 text-3xl font-bold text-ink">問題を作って、そのまま分析へ記録</h1>
-          <p className="mt-2 text-slate-600">回答を入力して「分析へ記録」を押すと、正答率や苦手単元に反映されます。</p>
+          <p className="text-sm font-semibold text-focus">基本情報技術者試験</p>
+          <h1 className="mt-1 text-3xl font-bold text-ink">午前問題を作って、そのまま分析へ記録</h1>
+          <p className="mt-2 text-slate-600">回答を入力して「分析へ記録」を押すと、正答率や苦手分野に反映されます。</p>
         </div>
         <div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
           追加条件 {filled}/3
@@ -238,7 +238,7 @@ export default function Page() {
             <h2 className="section-title">生成条件</h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <label>
-                <span className="label">教科</span>
+                <span className="label">分野</span>
                 <select className="field mt-1" value={form.subject} onChange={(e) => update("subject", e.target.value)}>
                   {subjects.map((subject) => (
                     <option key={subject}>{subject}</option>
@@ -246,11 +246,11 @@ export default function Page() {
                 </select>
               </label>
               <label>
-                <span className="label">単元</span>
+                <span className="label">テーマ</span>
                 <input
                   className="field mt-1"
                   required
-                  placeholder="例: 一次方程式、比較、電流"
+                  placeholder="例: 2進数、SQL、暗号化、稼働率"
                   value={form.unit}
                   onChange={(e) => update("unit", e.target.value)}
                 />
@@ -273,9 +273,9 @@ export default function Page() {
             <label>
               <span className="label">難易度</span>
               <select className="field mt-1" value={form.difficulty} onChange={(e) => update("difficulty", e.target.value)}>
-                <option value="easy">やさしい</option>
+                <option value="easy">基礎</option>
                 <option value="normal">標準</option>
-                <option value="hard">発展</option>
+                <option value="hard">応用</option>
               </select>
             </label>
             <label>
@@ -302,7 +302,7 @@ export default function Page() {
               <span className="label">出題ねらい</span>
               <select className="field mt-1" value={form.question_style} onChange={(e) => update("question_style", e.target.value)}>
                 <option value="standard">標準演習</option>
-                <option value="exam">テスト対策</option>
+                <option value="exam">午前対策</option>
                 <option value="weakness">苦手克服</option>
                 <option value="speed">短時間演習</option>
                 <option value="concept">考え方重視</option>
@@ -315,7 +315,7 @@ export default function Page() {
               <span className="label">学習目的</span>
               <textarea
                 className="field mt-1 min-h-20"
-                placeholder="例: 文章題で式を立てる練習をしたい"
+                placeholder="例: 過去問でよく出る考え方を確認したい"
                 value={form.purpose}
                 onChange={(e) => update("purpose", e.target.value)}
               />
@@ -324,7 +324,7 @@ export default function Page() {
               <span className="label">重点ポイント</span>
               <input
                 className="field mt-1"
-                placeholder="例: 途中式、単位変換、ひっかけ"
+                placeholder="例: 用語の違い、計算手順、ひっかけ選択肢"
                 value={form.focus_points}
                 onChange={(e) => update("focus_points", e.target.value)}
               />
@@ -333,7 +333,7 @@ export default function Page() {
               <span className="label">避けたい内容</span>
               <input
                 className="field mt-1"
-                placeholder="例: 未習範囲、平方根、難しい公式"
+                placeholder="例: 午後問題レベル、未学習のアルゴリズム"
                 value={form.excluded_topics}
                 onChange={(e) => update("excluded_topics", e.target.value)}
               />
@@ -347,7 +347,7 @@ export default function Page() {
             </label>
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input checked={form.include_steps} type="checkbox" onChange={(e) => update("include_steps", e.target.checked)} />
-              考え方・途中式を詳しくする
+              考え方・計算手順を詳しくする
             </label>
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input

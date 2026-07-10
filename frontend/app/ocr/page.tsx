@@ -107,7 +107,7 @@ export default function Page() {
         <form className="panel h-fit space-y-4" onSubmit={analyze}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <label>
-              <span className="label">教科</span>
+              <span className="label">分野</span>
               <select className="field mt-1" value={subject} onChange={(event) => setSubject(event.target.value)}>
                 {subjects.map((item) => (
                   <option key={item}>{item}</option>

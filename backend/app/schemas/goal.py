@@ -9,7 +9,7 @@ class GoalBase(BaseModel):
     @classmethod
     def valid_subject(cls, value: str):
         if value not in SUBJECTS:
-            raise ValueError("指定できない教科です")
+            raise ValueError("指定できない分野です")
         return value
 class GoalCreate(GoalBase):
     pass

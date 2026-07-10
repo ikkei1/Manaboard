@@ -1,26 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { usePathname } from "next/navigation";
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-
-  async function logout() {
-    await apiFetch("/auth/logout", { method: "POST" });
-    router.push("/login");
-  }
-
   const links = [
     ["/dashboard", "ホーム"],
     ["/study", "学習記録"],
-    ["/ai/problems", "AI問題"],
+    ["/ai/problems", "FE問題"],
     ["/analysis", "分析"],
-    ["/schedule", "予定"],
+    ["/schedule", "計画"],
     ["/ocr", "画像解説"],
-    ["/goals", "目標"],
   ];
 
   return (
@@ -42,9 +33,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 {label}
               </Link>
             ))}
-            <button className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100" onClick={logout}>
-              ログアウト
-            </button>
           </nav>
         </div>
       </header>

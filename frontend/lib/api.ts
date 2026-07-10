@@ -1,13 +1,13 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
 export const subjects = [
-  "\u6570\u5b66",
-  "\u82f1\u8a9e",
-  "\u56fd\u8a9e",
-  "\u7406\u79d1",
-  "\u793e\u4f1a",
-  "\u60c5\u5831",
-  "\u305d\u306e\u4ed6",
+  "テクノロジ系",
+  "アルゴリズム",
+  "データベース",
+  "ネットワーク",
+  "セキュリティ",
+  "マネジメント系",
+  "ストラテジ系",
 ];
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -18,12 +18,12 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   });
 
   if (!response.ok) {
-    let detail = "\u901a\u4fe1\u306b\u5931\u6557\u3057\u307e\u3057\u305f";
+    let detail = "通信に失敗しました";
     try {
       const body = await response.json();
       detail = body.detail ?? detail;
     } catch {}
-    throw new Error(Array.isArray(detail) ? "\u5165\u529b\u5185\u5bb9\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044" : detail);
+    throw new Error(Array.isArray(detail) ? "入力内容を確認してください" : detail);
   }
 
   if (response.status === 204) return undefined as T;
