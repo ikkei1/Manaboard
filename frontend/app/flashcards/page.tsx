@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { apiFetch, subjects } from "@/lib/api";
 
@@ -70,6 +70,7 @@ export default function FlashcardsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const cards = data?.items ?? [];
   const current = cards[selectedIndex] ?? null;
@@ -172,6 +173,7 @@ export default function FlashcardsPage() {
       exam_point: card.exam_point,
       status: card.status,
     });
+    window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }
 
   function cancelEdit() {
@@ -198,8 +200,8 @@ export default function FlashcardsPage() {
         <Stat title="習得" value={data?.stats.mastered ?? 0} />
       </section>
 
-      <section className="mb-5 grid gap-5 lg:grid-cols-[1fr_360px]">
-        <div className="panel grid min-h-[380px] gap-5">
+      <section className="mb-6">
+        <div className="panel grid min-h-[460px] gap-5">
           {!current ? (
             <div className="grid place-items-center rounded-md border border-slate-200 bg-slate-50 text-center">
               <p className="text-xl font-bold text-slate-500">なし</p>
@@ -222,10 +224,10 @@ export default function FlashcardsPage() {
                 </div>
               </div>
 
-              <div className="grid min-h-64 place-items-center rounded-md border border-slate-200 bg-slate-50 p-6 text-center">
+              <div className="grid min-h-80 place-items-center rounded-md border border-slate-200 bg-slate-50 p-6 text-center">
                 <div className="w-full max-w-2xl">
                   <p className="text-sm font-bold text-focus">{current.subject}</p>
-                  <h2 className="mt-4 text-4xl font-bold text-ink">{current.term}</h2>
+                  <h2 className="mt-4 text-5xl font-bold text-ink sm:text-6xl">{current.term}</h2>
                   {revealed && (
                     <div className="mt-6 grid gap-3 text-left">
                       <p className="rounded-md bg-white p-4 text-lg font-semibold leading-relaxed">{current.definition}</p>
@@ -252,52 +254,6 @@ export default function FlashcardsPage() {
             </>
           )}
         </div>
-
-        <form className="panel h-fit grid gap-3" onSubmit={saveCard}>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold">{editingId ? "編集" : "追加"}</h2>
-            {editingId && (
-              <button className="font-semibold text-slate-500" onClick={cancelEdit} type="button">
-                解除
-              </button>
-            )}
-          </div>
-          <label className="grid gap-1">
-            <span className="label">分野</span>
-            <select className="field" value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })}>
-              {subjects.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1">
-            <span className="label">用語</span>
-            <input className="field" required value={form.term} onChange={(event) => setForm({ ...form, term: event.target.value })} />
-          </label>
-          <label className="grid gap-1">
-            <span className="label">意味</span>
-            <textarea className="field min-h-24" required value={form.definition} onChange={(event) => setForm({ ...form, definition: event.target.value })} />
-          </label>
-          <label className="grid gap-1">
-            <span className="label">重点</span>
-            <textarea className="field min-h-20" required value={form.exam_point} onChange={(event) => setForm({ ...form, exam_point: event.target.value })} />
-          </label>
-          {editingId && (
-            <label className="grid gap-1">
-              <span className="label">状態</span>
-              <select className="field" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as CardStatus })}>
-                {statusOptions.slice(1).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <button className="btn-primary" disabled={busy}>
-            {editingId ? "更新" : "追加"}
-          </button>
-        </form>
       </section>
 
       <section className="panel mb-5 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
@@ -333,7 +289,7 @@ export default function FlashcardsPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2">
+      <section className="mb-6 grid gap-3 md:grid-cols-2">
         {cards.map((card, index) => (
           <article className={`rounded-md border bg-white p-4 shadow-sm ${selectedIndex === index ? "border-focus" : "border-slate-200"}`} key={card.id}>
             <div className="flex items-start justify-between gap-3">
@@ -354,6 +310,54 @@ export default function FlashcardsPage() {
           </article>
         ))}
       </section>
+
+      <form className="panel grid gap-4" ref={formRef} onSubmit={saveCard}>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="section-title mb-0">{editingId ? "編集" : "追加"}</h2>
+          {editingId && (
+            <button className="font-semibold text-slate-500" onClick={cancelEdit} type="button">
+              解除
+            </button>
+          )}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid gap-1">
+            <span className="label">分野</span>
+            <select className="field" value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })}>
+              {subjects.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1">
+            <span className="label">用語</span>
+            <input className="field" required value={form.term} onChange={(event) => setForm({ ...form, term: event.target.value })} />
+          </label>
+          <label className="grid gap-1 md:col-span-2">
+            <span className="label">意味</span>
+            <textarea className="field min-h-24" required value={form.definition} onChange={(event) => setForm({ ...form, definition: event.target.value })} />
+          </label>
+          <label className="grid gap-1 md:col-span-2">
+            <span className="label">重点</span>
+            <textarea className="field min-h-20" required value={form.exam_point} onChange={(event) => setForm({ ...form, exam_point: event.target.value })} />
+          </label>
+          {editingId && (
+            <label className="grid gap-1">
+              <span className="label">状態</span>
+              <select className="field" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as CardStatus })}>
+                {statusOptions.slice(1).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+        <button className="btn-primary" disabled={busy}>
+          {editingId ? "更新" : "追加"}
+        </button>
+      </form>
     </Shell>
   );
 }

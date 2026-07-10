@@ -197,8 +197,8 @@ export default function Page() {
         <div className="status-pill">3問</div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
-        <form className="panel h-fit space-y-5" onSubmit={generate}>
+      <div className="grid gap-5">
+        <form className="panel grid gap-5" onSubmit={generate}>
           <label className="block">
             <span className="label">分野</span>
             <select className="field mt-1" value={form.subject} onChange={(event) => updateSubject(event.target.value)}>

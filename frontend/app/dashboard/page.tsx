@@ -144,7 +144,7 @@ export default function DashboardPage() {
             <Stat title="カバー" value={coverage} suffix="%" />
           </section>
 
-          <section className="grid gap-5 lg:grid-cols-[1fr_0.85fr]">
+          <section className="grid gap-5">
             <div className="panel">
               <h2 className="section-title">分野別の学習配分</h2>
               <div className="grid gap-3">
@@ -185,7 +185,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+          <section className="grid gap-5">
             <form className="panel grid gap-4" onSubmit={generateSchedule}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="section-title">計画作成</h2>

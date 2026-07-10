@@ -100,9 +100,40 @@ export default function StudyPage() {
 
       {toast && <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{toast}</p>}
 
-      <section className="mb-5 grid gap-5 lg:grid-cols-[1fr_0.9fr]">
-        <div className="panel">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section className={`panel mb-6 grid gap-5 ${isRunning ? "border-blue-300 bg-blue-50" : ""}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <span className="status-pill">{timerSubject}</span>
+            <span className="status-pill">{recordedMinutes}分</span>
+          </div>
+          <button className="btn-secondary" disabled={isRunning || elapsedSeconds === 0} onClick={resetTimer}>
+            リセット
+          </button>
+        </div>
+
+        <div className="mx-auto w-full max-w-5xl">
+          <div className="rounded-md border border-slate-200 bg-white px-4 py-10 text-center font-mono text-6xl font-bold leading-none text-ink sm:text-8xl lg:text-9xl">
+            {formatTimer(elapsedSeconds)}
+          </div>
+        </div>
+
+        <div className="mx-auto grid w-full max-w-3xl gap-3">
+          {!isRunning ? (
+            <button className="action-primary" onClick={startTimer}>
+              開始
+            </button>
+          ) : (
+            <button className="action-danger" onClick={stopAndSave}>
+              停止して記録
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="panel mb-6 grid gap-5">
+        <div>
+          <h2 className="section-title">分野</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {subjects.map((subject) => (
               <button
                 className={`segment-button ${timerSubject === subject ? "segment-on" : "segment-off"}`}
@@ -115,45 +146,17 @@ export default function StudyPage() {
               </button>
             ))}
           </div>
-          <label className="mt-4 block">
-            <span className="label">メモ</span>
-            <input
-              className="field mt-1"
-              disabled={isRunning}
-              placeholder="SQL / 暗号化 / 稼働率"
-              value={memo}
-              onChange={(event) => setMemo(event.target.value)}
-            />
-          </label>
         </div>
-
-        <div className={`panel grid gap-4 ${isRunning ? "border-blue-300 bg-blue-50" : ""}`}>
-          <div className="rounded-md border border-slate-200 bg-white px-5 py-6 text-center font-mono text-5xl font-bold text-ink sm:text-6xl">
-            {formatTimer(elapsedSeconds)}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-md bg-slate-50 p-3 text-center">
-              <p className="text-xs font-bold text-slate-500">記録</p>
-              <p className="mt-1 text-2xl font-bold">{recordedMinutes}分</p>
-            </div>
-            <div className="rounded-md bg-slate-50 p-3 text-center">
-              <p className="text-xs font-bold text-slate-500">分野</p>
-              <p className="mt-1 truncate text-lg font-bold">{timerSubject}</p>
-            </div>
-          </div>
-          {!isRunning ? (
-            <button className="action-primary" onClick={startTimer}>
-              開始
-            </button>
-          ) : (
-            <button className="action-danger" onClick={stopAndSave}>
-              停止して記録
-            </button>
-          )}
-          <button className="btn-secondary" disabled={isRunning || elapsedSeconds === 0} onClick={resetTimer}>
-            リセット
-          </button>
-        </div>
+        <label className="block">
+          <span className="label">メモ</span>
+          <input
+            className="field mt-1"
+            disabled={isRunning}
+            placeholder="SQL / 暗号化 / 稼働率"
+            value={memo}
+            onChange={(event) => setMemo(event.target.value)}
+          />
+        </label>
       </section>
 
       <section className="panel mb-5 grid gap-3 md:grid-cols-[1fr_auto_auto]">
