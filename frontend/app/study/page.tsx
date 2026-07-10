@@ -90,44 +90,63 @@ export default function StudyPage() {
 
   return (
     <Shell>
-      <div className="mb-6">
-        <p className="text-sm font-semibold text-focus">学習記録</p>
-        <h1 className="mt-1 text-3xl font-bold">分野を選んでタイマー開始</h1>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-focus">学習記録</p>
+          <h1 className="mt-1 text-3xl font-bold">学習タイマー</h1>
+        </div>
+        <div className="status-pill">{timerSubject}</div>
       </div>
 
       {toast && <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{toast}</p>}
 
-      <section className="panel mb-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="grid gap-1 text-sm font-semibold">
-            分野
-            <select className="field" disabled={isRunning} value={timerSubject} onChange={(event) => setTimerSubject(event.target.value)}>
-              {subjects.map((subject) => (
-                <option key={subject}>{subject}</option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm font-semibold md:col-span-2">
-            メモ
+      <section className="mb-5 grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+        <div className="panel">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {subjects.map((subject) => (
+              <button
+                className={`segment-button ${timerSubject === subject ? "segment-on" : "segment-off"}`}
+                disabled={isRunning}
+                key={subject}
+                onClick={() => setTimerSubject(subject)}
+                type="button"
+              >
+                {subject}
+              </button>
+            ))}
+          </div>
+          <label className="mt-4 block">
+            <span className="label">メモ</span>
             <input
-              className="field"
+              className="field mt-1"
               disabled={isRunning}
-              placeholder="例: SQLの結合を復習"
+              placeholder="SQL / 暗号化 / 稼働率"
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
             />
           </label>
         </div>
-        <div className="grid gap-3 sm:grid-cols-[auto_auto_auto] sm:items-center">
-          <div className="rounded-md border border-slate-200 bg-white px-5 py-3 text-center font-mono text-3xl font-bold text-ink">
+
+        <div className={`panel grid gap-4 ${isRunning ? "border-blue-300 bg-blue-50" : ""}`}>
+          <div className="rounded-md border border-slate-200 bg-white px-5 py-6 text-center font-mono text-5xl font-bold text-ink sm:text-6xl">
             {formatTimer(elapsedSeconds)}
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-md bg-slate-50 p-3 text-center">
+              <p className="text-xs font-bold text-slate-500">記録</p>
+              <p className="mt-1 text-2xl font-bold">{recordedMinutes}分</p>
+            </div>
+            <div className="rounded-md bg-slate-50 p-3 text-center">
+              <p className="text-xs font-bold text-slate-500">分野</p>
+              <p className="mt-1 truncate text-lg font-bold">{timerSubject}</p>
+            </div>
+          </div>
           {!isRunning ? (
-            <button className="btn-primary" onClick={startTimer}>
+            <button className="action-primary" onClick={startTimer}>
               開始
             </button>
           ) : (
-            <button className="btn-primary" onClick={stopAndSave}>
+            <button className="action-danger" onClick={stopAndSave}>
               停止して記録
             </button>
           )}
@@ -137,7 +156,7 @@ export default function StudyPage() {
         </div>
       </section>
 
-      <section className="panel mb-5 grid gap-3 md:grid-cols-3">
+      <section className="panel mb-5 grid gap-3 md:grid-cols-[1fr_auto_auto]">
         <select
           className="field"
           value={filterSubject}

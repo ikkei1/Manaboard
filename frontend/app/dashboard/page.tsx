@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { apiFetch, subjects } from "@/lib/api";
 
@@ -98,14 +99,12 @@ export default function DashboardPage() {
 
   return (
     <Shell>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-focus">基本情報技術者試験</p>
           <h1 className="mt-1 text-3xl font-bold text-ink">ホーム</h1>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
-          分野カバー率 {coverage}%
-        </div>
+        <div className="status-pill">カバー {coverage}%</div>
       </div>
 
       {error && <p className="panel text-red-700">{error}</p>}
@@ -113,6 +112,15 @@ export default function DashboardPage() {
         <p className="panel">読み込み中...</p>
       ) : (
         <div className="grid gap-5">
+          <section className="grid gap-4 sm:grid-cols-2">
+            <Link className="action-primary" href="/study">
+              学習タイマー
+            </Link>
+            <Link className="action-primary bg-ink hover:bg-slate-800" href="/ai/problems">
+              FE問題
+            </Link>
+          </section>
+
           <section className="grid gap-4 md:grid-cols-4">
             <Stat title="今日" value={dashboard.today_minutes} suffix="分" />
             <Stat title="今週" value={dashboard.week_minutes} suffix="分" />
@@ -145,18 +153,17 @@ export default function DashboardPage() {
             <div className="panel">
               <h2 className="section-title">次の優先分野</h2>
               <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
-                <p className="text-sm font-semibold text-blue-900">次に進める</p>
                 <p className="mt-1 text-2xl font-bold text-blue-950">{nextArea}</p>
               </div>
               <div className="mt-4 grid gap-3">
-                {todayPlans.length === 0 && <p className="text-slate-500">未完了の計画はありません。</p>}
+                {todayPlans.length === 0 && <p className="text-slate-500">なし</p>}
                 {todayPlans.map((item) => (
-                  <label className="flex gap-3 rounded-md border border-slate-200 p-3" key={item.id}>
-                    <input className="mt-1 h-4 w-4" type="checkbox" checked={item.is_completed} onChange={() => toggleSchedule(item.id)} />
-                    <span>
+                  <button className="flex gap-3 rounded-md border border-slate-200 p-3 text-left hover:border-focus" key={item.id} onClick={() => toggleSchedule(item.id)}>
+                    <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white"></span>
+                    <span className="min-w-0">
                       <b>{item.scheduled_date}</b> {item.subject} / {item.study_minutes}分
                     </span>
-                  </label>
+                  </button>
                 ))}
               </div>
             </div>
@@ -166,7 +173,7 @@ export default function DashboardPage() {
             <form className="panel grid gap-4" onSubmit={generateSchedule}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="section-title">計画作成</h2>
-                <span className="rounded-md bg-slate-100 px-3 py-1 text-sm font-bold text-slate-600">最大14日分</span>
+                <span className="status-pill">14日</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1 text-sm font-semibold">
@@ -203,7 +210,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
-              <button className="btn-primary" disabled={busy || !planForm.subjects.length}>
+              <button className="action-primary" disabled={busy || !planForm.subjects.length}>
                 {busy ? "作成中..." : "計画を作成"}
               </button>
               {message && <p className="notice">{message}</p>}
@@ -212,21 +219,23 @@ export default function DashboardPage() {
             <div className="panel">
               <h2 className="section-title">学習計画</h2>
               <div className="grid gap-3">
-                {schedules.length === 0 && <p className="text-slate-500">計画はまだありません。</p>}
+                {schedules.length === 0 && <p className="text-slate-500">なし</p>}
                 {schedules.slice(0, 8).map((item) => (
                   <article className={`rounded-md border border-slate-200 p-3 ${item.is_completed ? "opacity-55" : ""}`} key={item.id}>
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <button className="text-left" onClick={() => toggleSchedule(item.id)}>
+                      <button className="flex flex-1 gap-3 text-left" onClick={() => toggleSchedule(item.id)}>
+                        <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${item.is_completed ? "border-focus bg-focus" : "border-slate-300"}`}></span>
+                        <span>
                         <p className="text-sm font-semibold text-slate-500">{item.scheduled_date} ・ {item.priority}</p>
                         <h3 className="font-bold">
                           {item.subject}：{item.unit} <span className="text-focus">{item.study_minutes}分</span>
                         </h3>
+                        </span>
                       </button>
                       <button className="font-semibold text-coral" onClick={() => removeSchedule(item.id)}>
                         削除
                       </button>
                     </div>
-                    <p className="mt-2 text-sm text-slate-600">{item.task_detail}</p>
                   </article>
                 ))}
               </div>
@@ -236,7 +245,7 @@ export default function DashboardPage() {
           <section className="panel">
             <h2 className="section-title">直近の学習</h2>
             <div className="grid gap-3 md:grid-cols-2">
-              {!dashboard.recent_logs.length && <p className="text-slate-500">まだ学習記録がありません。</p>}
+              {!dashboard.recent_logs.length && <p className="text-slate-500">なし</p>}
               {dashboard.recent_logs.map((log) => (
                 <div className="rounded-md border border-slate-200 p-3" key={log.id}>
                   <div className="flex justify-between font-semibold">

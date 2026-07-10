@@ -6,8 +6,8 @@
 body { margin: 0; }
 button, input, select, textarea { font: inherit; }
 .field { @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-focus focus:ring-2 focus:ring-blue-100; }
-.btn-primary { @apply inline-flex items-center justify-center rounded-md bg-focus px-4 py-2 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60; }
-.btn-secondary { @apply inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50; }
+.btn-primary { @apply inline-flex min-h-11 items-center justify-center rounded-md bg-focus px-4 py-2 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60; }
+.btn-secondary { @apply inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50; }
 .panel { @apply rounded-lg border border-slate-200 bg-white p-5 shadow-sm; }
 .notice { @apply mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900; }
 .section-title { @apply mb-4 text-lg font-bold; }
@@ -15,3 +15,11 @@ button, input, select, textarea { font: inherit; }
 .help { @apply mt-1 text-xs text-slate-500; }
 .chip { @apply inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition hover:border-focus hover:text-focus; }
 .chip-active { @apply border-focus bg-blue-50 text-focus; }
+.metric-card { @apply rounded-lg border border-slate-200 bg-white p-4 shadow-sm; }
+.segmented { @apply grid gap-2; }
+.segment-button { @apply min-h-11 rounded-md border px-3 py-2 text-sm font-bold transition; }
+.segment-on { @apply border-focus bg-focus text-white shadow-sm; }
+.segment-off { @apply border-slate-200 bg-white text-slate-700 hover:border-focus hover:bg-blue-50; }
+.action-primary { @apply inline-flex min-h-14 items-center justify-center rounded-md bg-focus px-6 py-3 text-lg font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60; }
+.action-danger { @apply inline-flex min-h-14 items-center justify-center rounded-md bg-coral px-6 py-3 text-lg font-bold text-white transition hover:brightness-95; }
+.status-pill { @apply inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-bold text-slate-700; }

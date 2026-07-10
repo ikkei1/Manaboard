@@ -189,17 +189,17 @@ export default function Page() {
 
   return (
     <Shell>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-focus">基本情報技術者試験</p>
           <h1 className="mt-1 text-3xl font-bold text-ink">FE問題</h1>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700">3問固定</div>
+        <div className="status-pill">3問</div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
-        <form className="panel h-fit space-y-4" onSubmit={generate}>
-          <label>
+        <form className="panel h-fit space-y-5" onSubmit={generate}>
+          <label className="block">
             <span className="label">分野</span>
             <select className="field mt-1" value={form.subject} onChange={(event) => updateSubject(event.target.value)}>
               {subjects.map((subject) => (
@@ -208,7 +208,7 @@ export default function Page() {
             </select>
           </label>
 
-          <label>
+          <label className="block">
             <span className="label">テーマ</span>
             <select className="field mt-1" value={form.unit} onChange={(event) => update("unit", event.target.value)}>
               {themePresets[form.subject].map((theme) => (
@@ -217,9 +217,9 @@ export default function Page() {
             </select>
           </label>
 
-          <ToggleGroup label="ねらい" value={form.question_style} items={styles} onChange={(value) => update("question_style", value)} />
-          <ToggleGroup label="難易度" value={form.difficulty} items={difficulties} onChange={(value) => update("difficulty", value)} />
-          <ToggleGroup label="形式" value={form.format} items={formats} onChange={(value) => update("format", value)} />
+          <ToggleGroup columns="grid-cols-2" label="ねらい" value={form.question_style} items={styles} onChange={(value) => update("question_style", value)} />
+          <ToggleGroup columns="grid-cols-3" label="難易度" value={form.difficulty} items={difficulties} onChange={(value) => update("difficulty", value)} />
+          <ToggleGroup columns="grid-cols-2" label="形式" value={form.format} items={formats} onChange={(value) => update("format", value)} />
 
           <div className="grid grid-cols-3 gap-2">
             <ToggleButton active={form.include_hints} onClick={() => update("include_hints", !form.include_hints)}>
@@ -233,8 +233,8 @@ export default function Page() {
             </ToggleButton>
           </div>
 
-          <div className="grid grid-cols-[1fr_auto] gap-3">
-            <button className="btn-primary" disabled={busy}>
+          <div className="grid gap-3">
+            <button className="action-primary" disabled={busy}>
               {busy ? "生成中..." : "生成"}
             </button>
             <button className="btn-secondary" type="button" onClick={loadSavedProblems}>
@@ -247,7 +247,6 @@ export default function Page() {
           <div className="panel mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold">{form.subject} / {form.unit}</h2>
-              <p className="text-sm text-slate-500">選択肢を押すか、回答欄に入力できます。</p>
             </div>
             <div className="flex gap-2">
               <button className="btn-secondary" disabled={!problems.length || busy} onClick={() => generate()} type="button">
@@ -260,7 +259,14 @@ export default function Page() {
           </div>
 
           {message && <p className="notice">{message}</p>}
-          {!problems.length && <p className="panel text-slate-500">条件を選んで生成してください。</p>}
+          {!problems.length && (
+            <div className="panel grid min-h-64 place-items-center text-center">
+              <div>
+                <p className="text-5xl font-bold text-slate-200">3</p>
+                <p className="mt-2 font-bold text-slate-500">未生成</p>
+              </div>
+            </div>
+          )}
 
           <div className="mt-5 grid gap-4">
             {problems.map((problem, index) => (
@@ -305,7 +311,7 @@ export default function Page() {
                     value={answers[index] ?? ""}
                     onChange={(event) => setAnswers((current) => ({ ...current, [index]: event.target.value }))}
                   />
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                     <button className="btn-primary" onClick={() => submitAnswer(index)} type="button">
                       採点して保存
                     </button>
@@ -343,11 +349,23 @@ export default function Page() {
   );
 }
 
-function ToggleGroup({ label, value, items, onChange }: { label: string; value: string; items: string[][]; onChange: (value: string) => void }) {
+function ToggleGroup({
+  columns,
+  label,
+  value,
+  items,
+  onChange,
+}: {
+  columns: string;
+  label: string;
+  value: string;
+  items: string[][];
+  onChange: (value: string) => void;
+}) {
   return (
     <div>
       <p className="label">{label}</p>
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className={`mt-2 grid gap-2 ${columns}`}>
         {items.map(([itemValue, itemLabel]) => (
           <ToggleButton active={value === itemValue} key={itemValue} onClick={() => onChange(itemValue)}>
             {itemLabel}
@@ -361,9 +379,7 @@ function ToggleGroup({ label, value, items, onChange }: { label: string; value: 
 function ToggleButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
   return (
     <button
-      className={`rounded-md border px-3 py-2 text-sm font-bold transition ${
-        active ? "border-focus bg-focus text-white" : "border-slate-200 bg-white text-slate-700 hover:border-focus"
-      }`}
+      className={`segment-button ${active ? "segment-on" : "segment-off"}`}
       onClick={onClick}
       type="button"
     >

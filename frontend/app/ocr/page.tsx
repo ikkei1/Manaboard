@@ -150,7 +150,6 @@ export default function Page() {
               maxLength={500}
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
-              placeholder="例: 問3だけ解説してほしい"
             />
           </label>
 
