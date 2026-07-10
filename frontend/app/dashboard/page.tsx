@@ -24,20 +24,33 @@ type ScheduleItem = {
   is_completed: boolean;
 };
 
+function dateAfter(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function defaultPassPlan() {
+  return {
+    goal_name: "基本情報技術者試験 合格",
+    exam_date: dateAfter(90),
+    weekday_minutes: 90,
+    weekend_minutes: 180,
+    subjects: [...subjects],
+    use_weak_analysis: false,
+  };
+}
+
 export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [planForm, setPlanForm] = useState({
-    goal_name: "基本情報技術者試験 合格",
-    exam_date: "",
-    weekday_minutes: 60,
-    weekend_minutes: 120,
-    subjects: ["テクノロジ系", "アルゴリズム", "セキュリティ"],
-    use_weak_analysis: false,
-  });
+  const [planForm, setPlanForm] = useState(defaultPassPlan);
 
   async function load() {
     const [dashboardData, scheduleData] = await Promise.all([apiFetch<Dashboard>("/dashboard"), apiFetch<ScheduleItem[]>("/schedules")]);
@@ -173,7 +186,9 @@ export default function DashboardPage() {
             <form className="panel grid gap-4" onSubmit={generateSchedule}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="section-title">計画作成</h2>
-                <span className="status-pill">14日</span>
+                <button className="status-pill" onClick={() => setPlanForm(defaultPassPlan())} type="button">
+                  合格プラン
+                </button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1 text-sm font-semibold">
