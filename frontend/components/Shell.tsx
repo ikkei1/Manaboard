@@ -9,7 +9,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const links: { href: string; label: string; icon: IconName }[] = [
     { href: "/dashboard", label: "ホーム", icon: "home" },
     { href: "/study", label: "学習記録", icon: "timer" },
-    { href: "/ai/problems", label: "FE問題", icon: "problems" },
+    { href: "/ai/problems", label: "AI問題", icon: "problems" },
     { href: "/flashcards", label: "単語帳", icon: "cards" },
     { href: "/ocr", label: "画像解説", icon: "image" },
   ];
