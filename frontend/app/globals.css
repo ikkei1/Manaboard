@@ -23,3 +23,4 @@ button, input, select, textarea { font: inherit; }
 .action-primary { @apply inline-flex min-h-14 items-center justify-center rounded-md bg-focus px-6 py-3 text-lg font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60; }
 .action-danger { @apply inline-flex min-h-14 items-center justify-center rounded-md bg-coral px-6 py-3 text-lg font-bold text-white transition hover:brightness-95; }
 .status-pill { @apply inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-bold text-slate-700; }
+.calculator-key { @apply min-h-12 rounded-md border border-slate-200 bg-slate-50 text-lg font-bold text-slate-800 transition hover:border-focus hover:bg-blue-50; }

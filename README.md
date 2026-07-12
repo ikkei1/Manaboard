@@ -1,56 +1,77 @@
 # Manaboard
 
-Manaboard is a local study support app focused on Japan's Fundamental Information Technology Engineer Examination. It records study time with a timer, generates practice problems, manages a dashboard-based study plan, and explains problems from images.
+Manaboardは、基本情報技術者試験の学習に特化したローカル学習支援アプリです。ログインせずに、学習時間の記録、AI問題演習、単語復習、教材画像の解説を利用できます。
 
-## Features
+## 主な機能
 
-- Local single-user mode without login
-- Timer-based study logging
-- Fundamental Information Technology Engineer Examination dashboard with study planning
-- AI-generated FE flashcards with review status tracking
-- AI practice problem generation for 3-question FE Section A/B review
-- Answer recording for generated problems
-- Image-based problem explanation with Gemini Vision
-- Tesseract OCR used only as supporting information for image analysis
+- ポモドーロタイマーによる学習時間の自動記録
+- 日付別の学習履歴、削除、ページ送り
+- 科目A・科目Bに対応したAI問題の3問演習
+- 正答率と進行状況の表示
+- AIが作成した基本情報技術者試験向け単語帳
+- 未習得・復習・習得による単語の管理
+- Geminiの画像認識を中心にした教材・プリントの画像解説
+- 画像認識を補助するTesseract OCR
+- 学習記録、AI問題、単語帳の状況をまとめたホーム画面
 
-## Tech Stack
+## 使用技術
 
-- Frontend: Next.js, React, TypeScript, Tailwind CSS
-- Backend: FastAPI, SQLAlchemy
-- Database: PostgreSQL
+- フロントエンド: Next.js、React、TypeScript、Tailwind CSS
+- バックエンド: FastAPI、SQLAlchemy
+- データベース: PostgreSQL
 - AI: Google Gemini API
 - OCR: Tesseract
-- Runtime: Docker Compose with one app container and one database container
+- 実行環境: Docker Compose
 
-## Setup
+## 必要なもの
 
-1. Copy `.env.example` to `.env`.
-2. Set your Gemini API key.
+- Docker Desktop
+- Google Gemini APIキー
+
+## セットアップ
+
+1. `.env.example`を複製して、プロジェクト直下に`.env`を作成します。
+2. `.env`にGemini APIキーを設定します。
 
 ```env
-GEMINI_API_KEY=your-gemini-api-key-here
+GEMINI_API_KEY=ここにAPIキーを設定
 GEMINI_MODEL=gemini-3.5-flash
 ```
 
-3. Start the app.
+3. プロジェクト直下で次のコマンドを実行します。
 
 ```bash
 docker compose up -d --build
 ```
 
-Docker starts:
+4. ブラウザで[http://localhost:3000](http://localhost:3000)を開きます。
 
-- `app`: Next.js frontend and FastAPI backend
-- `db`: PostgreSQL database
+## Docker構成
 
-## URLs
+- `app`: Next.jsフロントエンドとFastAPIバックエンド
+- `db`: PostgreSQLデータベース
 
-- Frontend: http://localhost:3000
-- Backend API docs: http://localhost:8000/docs
+## URL
 
-## Notes
+- アプリ: [http://localhost:3000](http://localhost:3000)
+- APIドキュメント: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-- Do not commit `.env`.
-- API keys are used only by the backend container.
-- Supported image formats are JPEG, PNG, and WebP.
-- Maximum image upload size is 5MB.
+## 停止と再起動
+
+```bash
+docker compose stop
+docker compose start
+```
+
+コンテナを削除して停止する場合は、次を実行します。データベースのボリュームは保持されます。
+
+```bash
+docker compose down
+```
+
+## 注意事項
+
+- `.env`やAPIキーをGitHubへコミットしないでください。
+- Gemini APIキーはバックエンドコンテナからのみ使用されます。
+- 対応画像形式はJPEG、PNG、WebPです。
+- アップロードできる画像は5MBまでです。

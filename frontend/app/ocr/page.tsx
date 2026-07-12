@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { Icon, type IconName } from "@/components/Icon";
 import { Shell } from "@/components/Shell";
 import { API_BASE, apiFetch, subjects } from "@/lib/api";
 
@@ -8,7 +9,6 @@ type ExplainResult = {
   summary: unknown;
   answer: unknown;
   explanation: unknown;
-  similar_problem: unknown;
   detected_problem?: unknown;
   ocr_reference?: string;
   ocr_confidence?: number;
@@ -27,11 +27,24 @@ function textValue(value: unknown): string {
   return String(value);
 }
 
-function ResultBlock({ title, children, tone = "default" }: { title: string; children: string; tone?: "default" | "answer" }) {
+function ResultBlock({
+  children,
+  icon,
+  title,
+  tone = "default",
+}: {
+  children: string;
+  icon: IconName;
+  title: string;
+  tone?: "default" | "answer";
+}) {
   if (!children) return null;
   return (
     <section className={tone === "answer" ? "rounded-md border border-emerald-200 bg-emerald-50 p-4" : "rounded-md border border-slate-200 bg-white p-4"}>
-      <p className="label">{title}</p>
+      <p className="label inline-flex items-center gap-2">
+        <Icon name={icon} size={17} />
+        {title}
+      </p>
       <p className={`mt-2 whitespace-pre-wrap leading-7 ${tone === "answer" ? "font-bold text-emerald-800" : "text-slate-800"}`}>{children}</p>
     </section>
   );
@@ -40,11 +53,11 @@ function ResultBlock({ title, children, tone = "default" }: { title: string; chi
 export default function Page() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
-  const [subject, setSubject] = useState(subjects[0]);
   const [memo, setMemo] = useState("");
   const [result, setResult] = useState<ExplainResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const subject = subjects[0];
 
   const canAnalyze = Boolean(file) && !busy;
   const fileMeta = useMemo(() => {
@@ -95,7 +108,7 @@ export default function Page() {
         confidence: result.ocr_confidence ?? 0,
         ai_answer: textValue(result.answer),
         ai_explanation: textValue(result.explanation),
-        similar_problem: textValue(result.similar_problem),
+        similar_problem: "",
       }),
     });
     setMessage("保存しました");
@@ -103,79 +116,89 @@ export default function Page() {
 
   return (
     <Shell>
+      <div className="mb-5">
+        <h1 className="text-3xl font-bold text-ink">画像解説</h1>
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
-        <form className="panel h-fit space-y-4" onSubmit={analyze}>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <label>
-              <span className="label">分野</span>
-              <select className="field mt-1" value={subject} onChange={(event) => setSubject(event.target.value)}>
-                {subjects.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
+        <form className="panel grid h-fit gap-4" onSubmit={analyze}>
+          <h2 className="section-title mb-0 inline-flex items-center gap-2">
+            <Icon name="image" size={21} />
+            画像
+          </h2>
 
-            <label>
-              <span className="label">画像</span>
-              <input
-                required
-                className="field mt-1"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => {
-                  const selected = event.target.files?.[0] || null;
-                  setFile(selected);
-                  setResult(null);
-                  setMessage("");
-                  setPreview(selected ? URL.createObjectURL(selected) : "");
-                }}
-              />
-            </label>
-          </div>
+          <label>
+            <span className="label">ファイル</span>
+            <input
+              required
+              className="field mt-1"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) => {
+                const selected = event.target.files?.[0] || null;
+                setFile(selected);
+                setResult(null);
+                setMessage("");
+                setPreview(selected ? URL.createObjectURL(selected) : "");
+              }}
+            />
+          </label>
 
-          <div className="min-h-56 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+          <div className="min-h-72 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
             {preview ? (
-              <img src={preview} alt="" className="h-full max-h-[420px] w-full object-contain" />
+              <img src={preview} alt="" className="h-full max-h-[460px] w-full object-contain" />
             ) : (
-              <div className="flex min-h-56 items-center justify-center text-sm font-semibold text-slate-400">画像未選択</div>
+              <div className="grid min-h-72 place-items-center text-center text-slate-400">
+                <div>
+                  <Icon className="mx-auto" name="image" size={46} />
+                  <p className="mt-3 text-sm font-bold">画像未選択</p>
+                </div>
+              </div>
             )}
           </div>
 
           {fileMeta && <p className="rounded-md bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600">{fileMeta}</p>}
 
           <label>
-            <span className="label">補足メモ</span>
-            <textarea
-              className="field mt-1 min-h-24"
-              maxLength={500}
-              value={memo}
-              onChange={(event) => setMemo(event.target.value)}
-            />
+            <span className="label">追加指示</span>
+            <textarea className="field mt-1 min-h-24" maxLength={500} value={memo} onChange={(event) => setMemo(event.target.value)} />
           </label>
 
-          <button className="btn-primary w-full" disabled={!canAnalyze}>
+          <button className="action-primary gap-2" disabled={!canAnalyze}>
+            <Icon name="spark" size={22} />
             {busy ? "解析中..." : "AIで解説"}
           </button>
         </form>
 
-        <section className="space-y-4">
+        <section className="grid content-start gap-4">
           {message && <p className="notice">{message}</p>}
 
-          {!result && !message && (
-            <div className="min-h-[280px] rounded-lg border border-dashed border-slate-300 bg-white" aria-hidden="true" />
+          {!result && (
+            <div className="panel grid min-h-[420px] place-items-center text-center">
+              <div>
+                <Icon className="mx-auto text-slate-300" name="image" size={58} />
+                <p className="mt-3 text-xl font-bold text-slate-500">未解析</p>
+              </div>
+            </div>
           )}
 
           {result && (
-            <div className="space-y-4">
-              <ResultBlock title="読み取った問題">{textValue(result.detected_problem)}</ResultBlock>
-              <ResultBlock title="要点">{textValue(result.summary)}</ResultBlock>
-              <ResultBlock title="答え" tone="answer">
+            <div className="grid gap-4">
+              <ResultBlock icon="problems" title="読み取った問題">
+                {textValue(result.detected_problem)}
+              </ResultBlock>
+              <ResultBlock icon="list" title="要点">
+                {textValue(result.summary)}
+              </ResultBlock>
+              <ResultBlock icon="check" title="答え" tone="answer">
                 {textValue(result.answer)}
               </ResultBlock>
-              <ResultBlock title="解き方">{textValue(result.explanation)}</ResultBlock>
-              <ResultBlock title="類題">{textValue(result.similar_problem)}</ResultBlock>
+              <ResultBlock icon="book" title="解き方">
+                {textValue(result.explanation)}
+              </ResultBlock>
               <div className="flex justify-end">
-                <button className="btn-primary" onClick={save} type="button">
+                <button className="btn-primary gap-2" onClick={save} type="button">
+                  <Icon name="check" size={18} />
                   保存
                 </button>
               </div>

@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from pydantic import BaseModel, Field, field_validator
 from app.schemas.common import SUBJECTS
 class StudyLogBase(BaseModel):
@@ -16,7 +17,7 @@ class StudyLogBase(BaseModel):
     @field_validator("studied_at")
     @classmethod
     def not_future(cls, value: date):
-        if value > date.today():
+        if value > datetime.now(ZoneInfo("Asia/Tokyo")).date():
             raise ValueError("未来の日付は指定できません")
         return value
 class StudyLogCreate(StudyLogBase):

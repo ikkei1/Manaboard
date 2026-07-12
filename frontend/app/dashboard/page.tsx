@@ -10,8 +10,7 @@ type Dashboard = {
   today_minutes: number;
   week_minutes: number;
   month_minutes: number;
-  subject_shares: { subject: string; minutes: number; percent: number }[];
-  recent_logs: { id: string; subject: string; study_minutes: number; studied_at: string; memo?: string }[];
+  recent_logs: { id: string; study_minutes: number; studied_at: string; memo?: string }[];
 };
 
 type Problem = {
@@ -30,7 +29,6 @@ const emptyDashboard: Dashboard = {
   today_minutes: 0,
   week_minutes: 0,
   month_minutes: 0,
-  subject_shares: [],
   recent_logs: [],
 };
 
@@ -86,36 +84,13 @@ export default function DashboardPage() {
       {!dashboard && !error && <p className="notice mb-5">読み込み中...</p>}
 
       <div className="grid gap-5">
-        <section className="grid gap-4 lg:grid-cols-3">
-          <HomeCard
-            href="/study"
-            icon="clock"
-            title="学習記録"
-            value={`${dashboardView.today_minutes}分`}
-            sub={`今週 ${dashboardView.week_minutes}分 / 今月 ${dashboardView.month_minutes}分`}
-            tone="blue"
-          />
-          <HomeCard href="/ai/problems" icon="problems" title="AI問題" value={`${problems.length}問`} sub={`最新 ${recentProblems.length}件`} tone="mint" />
-          <HomeCard
-            href="/flashcards"
-            icon="cards"
-            title="単語帳"
-            value={`${flashcards.stats.total}語`}
-            sub={`習得 ${flashcards.stats.mastered} / 復習 ${flashcards.stats.learning}`}
-            tone="coral"
-          />
-        </section>
-
         <section className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="panel">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="section-title mb-0 inline-flex items-center gap-2">
+            <div className="mb-5">
+              <Link className="section-title mb-0 inline-flex items-center gap-2 transition hover:text-focus" href="/study">
                 <Icon name="clock" size={20} />
                 学習記録
-              </h2>
-              <Link className="btn-secondary gap-2" href="/study">
                 <Icon name="chevronRight" size={18} />
-                開く
               </Link>
             </div>
             <div className="grid gap-4 sm:grid-cols-[210px_1fr] sm:items-center">
@@ -129,14 +104,11 @@ export default function DashboardPage() {
           </div>
 
           <div className="panel">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="section-title mb-0 inline-flex items-center gap-2">
+            <div className="mb-5">
+              <Link className="section-title mb-0 inline-flex items-center gap-2 transition hover:text-focus" href="/flashcards">
                 <Icon name="cards" size={20} />
                 単語帳
-              </h2>
-              <Link className="btn-secondary gap-2" href="/flashcards">
                 <Icon name="chevronRight" size={18} />
-                開く
               </Link>
             </div>
             <div className="grid gap-3">
@@ -149,14 +121,11 @@ export default function DashboardPage() {
 
         <section className="grid gap-5 lg:grid-cols-2">
           <div className="panel">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="section-title mb-0 inline-flex items-center gap-2">
+            <div className="mb-4">
+              <Link className="section-title mb-0 inline-flex items-center gap-2 transition hover:text-focus" href="/ai/problems">
                 <Icon name="problems" size={20} />
                 AI問題
-              </h2>
-              <Link className="btn-secondary gap-2" href="/ai/problems">
                 <Icon name="chevronRight" size={18} />
-                開く
               </Link>
             </div>
             <div className="grid gap-3">
@@ -196,39 +165,6 @@ export default function DashboardPage() {
 
 function ratio(value: number, total: number) {
   return total ? Math.round((value / total) * 100) : 0;
-}
-
-function HomeCard({
-  href,
-  icon,
-  title,
-  value,
-  sub,
-  tone,
-}: {
-  href: string;
-  icon: IconName;
-  title: string;
-  value: string;
-  sub: string;
-  tone: "blue" | "mint" | "coral";
-}) {
-  const toneClass = {
-    blue: "bg-blue-50 text-blue-700",
-    coral: "bg-red-50 text-coral",
-    mint: "bg-emerald-50 text-mint",
-  }[tone];
-
-  return (
-    <Link className="panel block transition hover:-translate-y-0.5 hover:border-focus hover:shadow-md" href={href}>
-      <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-md ${toneClass}`}>
-        <Icon name={icon} size={23} />
-      </div>
-      <p className="text-sm font-semibold text-slate-500">{title}</p>
-      <p className="mt-1 text-4xl font-bold text-ink">{value}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-500">{sub}</p>
-    </Link>
-  );
 }
 
 function ProgressRing({ label, value }: { label: string; value: number }) {

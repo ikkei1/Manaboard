@@ -33,7 +33,13 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
       const body = await response.json();
       detail = body.detail ?? detail;
     } catch {}
-    throw new Error(Array.isArray(detail) ? "入力内容を確認してください" : detail);
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((item) => (typeof item === "object" && item && "msg" in item ? String(item.msg) : ""))
+        .filter(Boolean);
+      throw new Error(messages.join(" / ") || "入力内容を確認してください");
+    }
+    throw new Error(detail);
   }
 
   if (response.status === 204) return undefined as T;
@@ -41,5 +47,9 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 }
 
 export function todayString() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
