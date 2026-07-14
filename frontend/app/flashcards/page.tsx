@@ -1,11 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Shell } from "@/components/Shell";
 import { apiFetch, subjects } from "@/lib/api";
 
-type CardStatus = "new" | "learning" | "mastered";
+type CardStatus = "new" | "learning";
 
 type Flashcard = {
   id: string;
@@ -17,26 +17,30 @@ type Flashcard = {
   review_count: number;
   correct_count: number;
   last_reviewed_at: string | null;
+  next_review_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
 type FlashcardResponse = {
   items: Flashcard[];
-  stats: { total: number; new: number; learning: number; mastered: number };
+  stats: { total: number; new: number; learning: number };
+};
+
+type GenerateFlashcardsResponse = {
+  added: number;
+  items: Flashcard[];
 };
 
 const statusOptions: { value: "" | CardStatus; label: string }[] = [
-  { value: "", label: "すべて" },
-  { value: "new", label: "未習得" },
-  { value: "learning", label: "復習" },
-  { value: "mastered", label: "習得" },
+  { value: "", label: "今日の復習" },
+  { value: "new", label: "未学習の単語" },
+  { value: "learning", label: "学習済みの単語" },
 ];
 
 const statusLabels: Record<CardStatus, string> = {
-  new: "未習得",
-  learning: "復習",
-  mastered: "習得",
+  new: "未学習",
+  learning: "学習済み",
 };
 
 function accuracy(card: Flashcard) {
@@ -56,41 +60,51 @@ export default function FlashcardsPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [reviewedCards, setReviewedCards] = useState<Flashcard[]>([]);
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [sessionCompleted, setSessionCompleted] = useState(0);
+  const [sessionKind, setSessionKind] = useState<"today" | "repeat" | "extra">("today");
+  const generatedCardIdsRef = useRef<string[]>([]);
 
   const cards = data?.items ?? [];
   const current = cards[selectedIndex] ?? null;
-
-  const priorityCardIndex = useMemo(() => {
-    const learningIndex = cards.findIndex((card) => card.status === "learning");
-    if (learningIndex >= 0) return learningIndex;
-    const newIndex = cards.findIndex((card) => card.status === "new");
-    return newIndex >= 0 ? newIndex : 0;
-  }, [cards]);
+  const progressPercent = sessionTotal ? Math.round((sessionCompleted / sessionTotal) * 100) : 0;
 
   async function load(nextSubject = subject, nextStatus = status) {
     const params = new URLSearchParams();
     if (nextSubject) params.set("subject", nextSubject);
     if (nextStatus) params.set("status", nextStatus);
-    const response = await apiFetch<FlashcardResponse>(`/flashcards?${params}`);
-    setData(response);
+    const response = await apiFetch<FlashcardResponse>(`/flashcards?${params}`, { cache: "no-store" });
+    const generatedOrder = new Map(generatedCardIdsRef.current.map((id, index) => [id, index]));
+    const items = generatedOrder.size
+      ? [...response.items].sort((left, right) => {
+          const leftOrder = generatedOrder.get(left.id);
+          const rightOrder = generatedOrder.get(right.id);
+          if (leftOrder === undefined && rightOrder === undefined) return 0;
+          if (leftOrder === undefined) return 1;
+          if (rightOrder === undefined) return -1;
+          return leftOrder - rightOrder;
+        })
+      : response.items;
+    setData({ ...response, items });
     setSelectedIndex(0);
     setRevealed(false);
+    setReviewedCards([]);
+    setSessionTotal(items.length);
+    setSessionCompleted(0);
+    setSessionKind("today");
   }
 
   useEffect(() => {
     load().catch((error) => setMessage(error.message));
   }, [subject, status]);
 
-  useEffect(() => {
-    if (cards.length) setSelectedIndex(priorityCardIndex);
-  }, [cards.length, priorityCardIndex]);
-
   async function generateCards(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setMessage("");
     try {
-      await apiFetch<{ added: number }>("/flashcards/generate", {
+      const generated = await apiFetch<GenerateFlashcardsResponse>("/flashcards/generate", {
         method: "POST",
         body: JSON.stringify({
           subject: generateSubject,
@@ -98,6 +112,7 @@ export default function FlashcardsPage() {
           focus: generateFocus || null,
         }),
       });
+      generatedCardIdsRef.current = generated.items.map((card) => card.id);
       setSubject(generateSubject);
       setStatus("");
       await load(generateSubject, "");
@@ -113,11 +128,91 @@ export default function FlashcardsPage() {
     setBusy(true);
     setMessage("");
     try {
-      await apiFetch(`/flashcards/${current.id}/review`, {
+      const reviewed = await apiFetch<Flashcard>(`/flashcards/${current.id}/review`, {
         method: "PATCH",
         body: JSON.stringify({ remembered }),
       });
-      await load();
+      setReviewedCards((previous) => [...previous.filter((card) => card.id !== reviewed.id), reviewed]);
+      setData((previous) => {
+        if (!previous) return previous;
+        const nextStats = { ...previous.stats };
+        if (current.status !== reviewed.status) {
+          nextStats[current.status] = Math.max(0, nextStats[current.status] - 1);
+          nextStats[reviewed.status] += 1;
+        }
+        return {
+          items: previous.items.filter((card) => card.id !== current.id),
+          stats: nextStats,
+        };
+      });
+      setSelectedIndex((index) => Math.min(index, Math.max(0, cards.length - 2)));
+      setSessionCompleted((completed) => Math.min(sessionTotal, completed + 1));
+      setRevealed(false);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function restartReview() {
+    if (!data || reviewedCards.length === 0) return;
+    setData({ ...data, items: reviewedCards });
+    setSessionTotal(reviewedCards.length);
+    setSessionCompleted(0);
+    setSessionKind("repeat");
+    setReviewedCards([]);
+    setSelectedIndex(0);
+    setRevealed(false);
+  }
+
+  async function startDifferentReview() {
+    if (!data || busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const params = new URLSearchParams({ practice: "true" });
+      if (subject) params.set("subject", subject);
+      const response = await apiFetch<FlashcardResponse>(`/flashcards?${params}`, { cache: "no-store" });
+      const reviewedIds = new Set(reviewedCards.map((card) => card.id));
+      const differentCards = response.items.filter((card) => !reviewedIds.has(card.id));
+      const candidates = differentCards.length > 0 ? differentCards : response.items;
+      const items = candidates.slice(0, 10);
+      setData({ ...response, items });
+      setReviewedCards([]);
+      setSelectedIndex(0);
+      setRevealed(false);
+      setSessionTotal(items.length);
+      setSessionCompleted(0);
+      setSessionKind("extra");
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteCurrent() {
+    if (!current || busy || !window.confirm(`「${current.term}」を削除しますか？`)) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await apiFetch<void>(`/flashcards/${current.id}`, { method: "DELETE" });
+      setReviewedCards((previous) => previous.filter((card) => card.id !== current.id));
+      setData((previous) => {
+        if (!previous) return previous;
+        return {
+          items: previous.items.filter((card) => card.id !== current.id),
+          stats: {
+            ...previous.stats,
+            total: Math.max(0, previous.stats.total - 1),
+            [current.status]: Math.max(0, previous.stats[current.status] - 1),
+          },
+        };
+      });
+      setSelectedIndex((index) => Math.min(index, Math.max(0, cards.length - 2)));
+      setSessionTotal((total) => Math.max(sessionCompleted, total - 1));
+      setRevealed(false);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -190,7 +285,7 @@ export default function FlashcardsPage() {
 
               <div>
                 <p className="label">状態</p>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="mt-2 grid grid-cols-3 gap-2">
                   {statusOptions.map((option) => (
                     <button
                       className={`segment-button ${status === option.value ? "segment-on" : "segment-off"}`}
@@ -217,9 +312,33 @@ export default function FlashcardsPage() {
       )}
 
       <section className="panel relative mb-5 overflow-hidden p-4 sm:p-8">
-        {!current ? (
+        {!data ? (
           <div className="grid min-h-[540px] place-items-center text-center">
-            <Icon className="text-slate-500" name="cards" size={52} />
+            <p className="font-bold text-slate-500">読み込み中...</p>
+          </div>
+        ) : !current ? (
+          <div className="grid min-h-[540px] place-items-center text-center">
+            <div>
+              <Icon className="mx-auto text-slate-400" name="cards" size={52} />
+              <p className="mt-4 text-lg font-bold text-slate-500">
+                {status ? "対象の単語はありません" : sessionKind === "extra" ? "追加の復習は完了" : "今日の復習は完了"}
+              </p>
+              {!status && sessionTotal > 0 && <p className="mt-2 text-sm font-bold text-slate-400">{sessionCompleted} / {sessionTotal}</p>}
+              {!status && data.stats.total > 0 && (
+                <div className="mt-5 flex flex-wrap justify-center gap-3">
+                  {reviewedCards.length > 0 && (
+                    <button className="btn-secondary gap-2" onClick={restartReview} type="button">
+                      <Icon name="play" size={18} />
+                      もう一度やる
+                    </button>
+                  )}
+                  <button className="btn-primary gap-2" disabled={busy} onClick={startDifferentReview} type="button">
+                    <Icon name="cards" size={18} />
+                    別の問題をやる
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               aria-label="表示設定"
               className="btn-secondary absolute right-4 top-4 h-10 w-10 px-0 sm:right-8 sm:top-8"
@@ -245,11 +364,11 @@ export default function FlashcardsPage() {
               </button>
               <div>
                 <div className="mb-2 flex items-center justify-between text-sm font-bold text-slate-500">
-                  <span>{selectedIndex + 1}/{cards.length}</span>
-                  <span>{Math.round(((selectedIndex + 1) / cards.length) * 100)}%</span>
+                  <span>今回の進捗</span>
+                  <span>{sessionCompleted}/{sessionTotal}・{progressPercent}%</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-focus transition-all" style={{ width: `${((selectedIndex + 1) / cards.length) * 100}%` }} />
+                  <div className="h-full rounded-full bg-focus transition-all" style={{ width: `${progressPercent}%` }} />
                 </div>
               </div>
               <button
@@ -273,33 +392,45 @@ export default function FlashcardsPage() {
               </button>
             </div>
 
-            <button
-              aria-label={revealed ? "単語と答え" : "答えを見る"}
-              className="grid h-[460px] w-full place-items-center overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-7 text-center transition hover:border-focus hover:bg-white sm:p-12"
-              onClick={() => !revealed && setRevealed(true)}
-              type="button"
-            >
-              {!revealed ? (
-                <div className="w-full">
-                  <h2 className="break-words text-5xl font-bold text-ink sm:text-7xl">{current.term}</h2>
-                  <span className="mt-10 inline-flex items-center gap-2 text-sm font-bold text-slate-400">
-                    <Icon name="book" size={18} />
-                    答えを見る
-                  </span>
-                </div>
-              ) : (
-                <div className="w-full max-w-3xl text-left">
-                  <p className="text-center text-2xl font-bold text-slate-500">{current.term}</p>
-                  <p className="mt-7 border-t border-slate-200 pt-7 text-2xl font-bold leading-relaxed text-ink">{current.definition}</p>
-                  <p className="mt-5 rounded-md bg-blue-50 p-4 font-semibold leading-relaxed text-blue-950">{current.exam_point}</p>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <span className="status-pill">{current.subject}</span>
-                    <span className="status-pill">{statusLabels[current.status]}</span>
-                    <span className="status-pill">{accuracy(current)}%</span>
+            <div className="relative h-[460px] w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 transition hover:border-focus hover:bg-white">
+              <button
+                aria-label={`「${current.term}」を削除`}
+                className="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-md border border-red-200 bg-white text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                disabled={busy}
+                onClick={deleteCurrent}
+                title="単語を削除"
+                type="button"
+              >
+                <Icon name="trash" size={19} />
+              </button>
+              <button
+                aria-label={revealed ? "単語と答え" : "答えを見る"}
+                className="grid h-full w-full place-items-center overflow-y-auto p-7 text-center sm:p-12"
+                onClick={() => !revealed && setRevealed(true)}
+                type="button"
+              >
+                {!revealed ? (
+                  <div className="w-full">
+                    <h2 className="break-words text-5xl font-bold text-ink sm:text-7xl">{current.term}</h2>
+                    <span className="mt-10 inline-flex items-center gap-2 text-sm font-bold text-slate-400">
+                      <Icon name="book" size={18} />
+                      答えを見る
+                    </span>
                   </div>
-                </div>
-              )}
-            </button>
+                ) : (
+                  <div className="w-full max-w-3xl text-left">
+                    <p className="text-center text-2xl font-bold text-slate-500">{current.term}</p>
+                    <p className="mt-7 border-t border-slate-200 pt-7 text-2xl font-bold leading-relaxed text-ink">{current.definition}</p>
+                    <p className="mt-5 rounded-md bg-blue-50 p-4 font-semibold leading-relaxed text-blue-950">{current.exam_point}</p>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <span className="status-pill">{current.subject}</span>
+                      <span className="status-pill">{statusLabels[current.status]}</span>
+                      <span className="status-pill">{accuracy(current)}%</span>
+                    </div>
+                  </div>
+                )}
+              </button>
+            </div>
 
             <div className="h-14">
               {revealed && (
@@ -321,28 +452,27 @@ export default function FlashcardsPage() {
 
       {message && <p className="notice mb-5 mt-0">{message}</p>}
 
-      <section className="mb-5 grid grid-cols-4 divide-x divide-slate-200 overflow-hidden rounded-md border border-slate-200 bg-white">
-        <DeckStat title="総数" value={data?.stats.total ?? 0} />
-        <DeckStat title="未習得" value={data?.stats.new ?? 0} />
-        <DeckStat title="復習" value={data?.stats.learning ?? 0} />
-        <DeckStat title="習得" value={data?.stats.mastered ?? 0} />
+      <section className="mb-5 grid grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-md border border-slate-200 bg-white">
+        <DeckStat title="登録単語" value={data?.stats.total ?? 0} />
+        <DeckStat title="未学習" value={data?.stats.new ?? 0} />
+        <DeckStat title="学習済み" value={data?.stats.learning ?? 0} />
       </section>
 
       <section>
         <form className="panel grid gap-4" onSubmit={generateCards}>
           <h2 className="section-title mb-0 inline-flex items-center gap-2">
             <Icon name="spark" size={21} />
-            AIで単語を作成
+            AIで単語を追加
           </h2>
 
           <button className="action-primary gap-2" disabled={busy}>
             <Icon name="spark" size={22} />
-            {busy ? "作成中..." : "作成"}
+            {busy ? "追加中..." : "単語を追加"}
           </button>
 
           <div className="grid gap-4 md:grid-cols-[1fr_auto]">
             <label className="grid gap-1">
-              <span className="label">分野</span>
+              <span className="label">出題分野</span>
               <select className="field" value={generateSubject} onChange={(event) => setGenerateSubject(event.target.value)}>
                 {subjects.map((item) => (
                   <option key={item}>{item}</option>
@@ -350,7 +480,7 @@ export default function FlashcardsPage() {
               </select>
             </label>
             <label className="grid gap-1">
-              <span className="label">語数</span>
+              <span className="label">追加する語数</span>
               <select className="field min-w-28" value={generateCount} onChange={(event) => setGenerateCount(Number(event.target.value))}>
                 {[3, 5, 8, 10].map((count) => (
                   <option key={count} value={count}>{count}</option>
@@ -359,7 +489,7 @@ export default function FlashcardsPage() {
             </label>
           </div>
           <label className="grid gap-1">
-            <span className="label">重点</span>
+            <span className="label">含めたい内容</span>
             <input className="field" placeholder="例: 計算問題 / セキュリティ用語 / 科目B" value={generateFocus} onChange={(event) => setGenerateFocus(event.target.value)} />
           </label>
         </form>

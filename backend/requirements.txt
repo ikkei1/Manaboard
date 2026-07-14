@@ -10,3 +10,4 @@ bcrypt==4.0.1
 requests==2.34.2
 pytesseract==0.3.13
 Pillow==11.1.0
+fsrs==6.3.1

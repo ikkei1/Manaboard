@@ -21,8 +21,8 @@ type Problem = {
 };
 
 type FlashcardResponse = {
-  items: { id: string; term: string; status: "new" | "learning" | "mastered" }[];
-  stats: { total: number; new: number; learning: number; mastered: number };
+  items: { id: string; term: string; status: "new" | "learning" }[];
+  stats: { total: number; new: number; learning: number; today_reviewed: number };
 };
 
 const emptyDashboard: Dashboard = {
@@ -34,7 +34,7 @@ const emptyDashboard: Dashboard = {
 
 const emptyFlashcards: FlashcardResponse = {
   items: [],
-  stats: { total: 0, new: 0, learning: 0, mastered: 0 },
+  stats: { total: 0, new: 0, learning: 0, today_reviewed: 0 },
 };
 
 function cleanText(value: string | null | undefined) {
@@ -70,7 +70,7 @@ export default function DashboardPage() {
   }, []);
 
   const studyGoalPercent = useMemo(() => Math.min(100, Math.round((dashboardView.week_minutes / 600) * 100)), [dashboardView.week_minutes]);
-  const flashcardMasteredPercent = flashcards.stats.total ? Math.round((flashcards.stats.mastered / flashcards.stats.total) * 100) : 0;
+  const todayFlashcardTotal = flashcards.stats.today_reviewed + flashcards.items.length;
   const recentProblems = problems.slice(0, 3);
   const recentLogs = dashboardView.recent_logs.slice(0, 4);
 
@@ -112,9 +112,9 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="grid gap-3">
-              <MetricLine title="習得" value={`${flashcards.stats.mastered}語`} percent={flashcardMasteredPercent} />
-              <MetricLine title="復習" value={`${flashcards.stats.learning}語`} percent={ratio(flashcards.stats.learning, flashcards.stats.total)} />
-              <MetricLine title="未習得" value={`${flashcards.stats.new}語`} percent={ratio(flashcards.stats.new, flashcards.stats.total)} />
+              <MetricLine title="今日学習" value={`${flashcards.stats.today_reviewed}語`} percent={ratio(flashcards.stats.today_reviewed, todayFlashcardTotal)} />
+              <MetricLine title="今日の残り" value={`${flashcards.items.length}語`} percent={ratio(flashcards.items.length, todayFlashcardTotal)} />
+              <MetricLine title="未学習" value={`${flashcards.stats.new}語`} percent={ratio(flashcards.stats.new, flashcards.stats.total)} />
             </div>
           </div>
         </section>

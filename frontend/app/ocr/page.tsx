@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Icon, type IconName } from "@/components/Icon";
 import { Shell } from "@/components/Shell";
-import { API_BASE, apiFetch, subjects } from "@/lib/api";
+import { API_BASE, subjects } from "@/lib/api";
 
 type ExplainResult = {
   summary: unknown;
@@ -97,23 +97,6 @@ export default function Page() {
     }
   }
 
-  async function save() {
-    if (!result) return;
-    await apiFetch("/ocr/save", {
-      method: "POST",
-      body: JSON.stringify({
-        subject,
-        ocr_text: result.ocr_reference || textValue(result.detected_problem),
-        corrected_text: textValue(result.detected_problem) || result.ocr_reference || "",
-        confidence: result.ocr_confidence ?? 0,
-        ai_answer: textValue(result.answer),
-        ai_explanation: textValue(result.explanation),
-        similar_problem: "",
-      }),
-    });
-    setMessage("保存しました");
-  }
-
   return (
     <Shell>
       <div className="mb-5">
@@ -196,12 +179,6 @@ export default function Page() {
               <ResultBlock icon="book" title="解き方">
                 {textValue(result.explanation)}
               </ResultBlock>
-              <div className="flex justify-end">
-                <button className="btn-primary gap-2" onClick={save} type="button">
-                  <Icon name="check" size={18} />
-                  保存
-                </button>
-              </div>
             </div>
           )}
         </section>

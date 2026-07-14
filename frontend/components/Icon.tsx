@@ -21,6 +21,7 @@ export type IconName =
   | "spark"
   | "target"
   | "timer"
+  | "trash"
   | "x";
 
 type IconProps = {
@@ -173,6 +174,14 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M9 2h6" />
       <path d="M12 6v6l4 2" />
       <circle cx="12" cy="13" r="8" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5M14 11v5" />
     </>
   ),
   x: (

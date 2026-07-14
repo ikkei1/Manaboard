@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
-from app.models.learning_ai import AIProblem, OCRQuestion, ProblemAttempt, StudySchedule
+from app.models.learning_ai import AIProblem, ProblemAttempt, StudySchedule
 from app.models.user import User
 from app.schemas.common import SUBJECTS
 from app.services.ai_service import generate_json, generate_json_from_image
@@ -366,22 +366,3 @@ def explain(payload: ExplainIn, current_user: User = Depends(get_current_user)):
         ),
         payload.model_dump(),
     )
-
-
-class OCRSave(BaseModel):
-    subject: str
-    ocr_text: str
-    corrected_text: str
-    confidence: float
-    ai_answer: str
-    ai_explanation: str
-    similar_problem: str
-
-
-@router.post("/ocr/save")
-def save_ocr(payload: OCRSave, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    row = OCRQuestion(user_id=current_user.id, **payload.model_dump())
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return row

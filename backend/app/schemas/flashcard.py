@@ -29,6 +29,7 @@ class FlashcardOut(FlashcardBase):
     review_count: int
     correct_count: int
     last_reviewed_at: datetime | None
+    next_review_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -39,9 +40,14 @@ class FlashcardStats(BaseModel):
     total: int
     new: int
     learning: int
-    mastered: int
+    today_reviewed: int
 
 
 class FlashcardList(BaseModel):
     items: list[FlashcardOut]
     stats: FlashcardStats
+
+
+class FlashcardGenerateResult(BaseModel):
+    added: int
+    items: list[FlashcardOut]

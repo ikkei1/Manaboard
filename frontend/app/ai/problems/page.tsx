@@ -159,8 +159,10 @@ export default function Page() {
 
   async function generate(event?: FormEvent) {
     event?.preventDefault();
+    if (busy) return;
     setBusy(true);
     setMessage("");
+    const firstAddedIndex = problems.length;
     try {
       const response = await apiFetch<{ problems: Problem[] }>("/ai/problems/generate", {
         method: "POST",
@@ -172,11 +174,10 @@ export default function Page() {
           excluded_topics: null,
         }),
       });
-      setProblems(response.problems.map(cleanProblem));
-      setCurrentIndex(0);
-      setOpenAnswer({});
-      setAnswers({});
-      setResults({});
+      const addedProblems = response.problems.map(cleanProblem);
+      if (!addedProblems.length) throw new Error("問題を生成できませんでした。もう一度お試しください。");
+      setProblems((current) => [...current, ...addedProblems]);
+      setCurrentIndex(firstAddedIndex);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -526,25 +527,45 @@ function Calculator() {
   const [stored, setStored] = useState<number | null>(null);
   const [operator, setOperator] = useState<CalculatorOperator | null>(null);
   const [waiting, setWaiting] = useState(false);
+  const [history, setHistory] = useState("");
+
+  function format(value: number) {
+    if (!Number.isFinite(value)) return "エラー";
+    return String(Number(value.toPrecision(12))).slice(0, 14);
+  }
 
   function calculate(left: number, right: number, nextOperator: CalculatorOperator) {
     if (nextOperator === "+") return left + right;
     if (nextOperator === "−") return left - right;
     if (nextOperator === "×") return left * right;
-    return right === 0 ? 0 : left / right;
+    return right === 0 ? Number.NaN : left / right;
   }
 
   function input(value: string) {
+    if (display === "エラー") {
+      setDisplay(value);
+      setHistory("");
+      setWaiting(false);
+      return;
+    }
     if (waiting) {
+      if (!operator) setHistory("");
       setDisplay(value);
       setWaiting(false);
       return;
     }
-    setDisplay((current) => (current === "0" ? value : `${current}${value}`).slice(0, 14));
+    setDisplay((current) => (current === "0" ? value : current === "-0" ? `-${value}` : `${current}${value}`).slice(0, 14));
   }
 
   function decimal() {
+    if (display === "エラー") {
+      setDisplay("0.");
+      setHistory("");
+      setWaiting(false);
+      return;
+    }
     if (waiting) {
+      if (!operator) setHistory("");
       setDisplay("0.");
       setWaiting(false);
       return;
@@ -553,13 +574,24 @@ function Calculator() {
   }
 
   function choose(nextOperator: CalculatorOperator) {
+    if (display === "エラー") return;
     const value = Number(display);
     if (stored !== null && operator && !waiting) {
       const result = calculate(stored, value, operator);
+      const resultText = format(result);
+      setHistory(`${format(stored)} ${operator} ${format(value)} =`);
+      if (resultText === "エラー") {
+        setDisplay(resultText);
+        setStored(null);
+        setOperator(null);
+        setWaiting(true);
+        return;
+      }
       setStored(result);
-      setDisplay(String(result).slice(0, 14));
+      setDisplay(resultText);
     } else {
       setStored(value);
+      if (!operator) setHistory("");
     }
     setOperator(nextOperator);
     setWaiting(true);
@@ -568,7 +600,8 @@ function Calculator() {
   function equals() {
     if (stored === null || !operator) return;
     const result = calculate(stored, Number(display), operator);
-    setDisplay(String(result).slice(0, 14));
+    setHistory(`${format(stored)} ${operator} ${format(Number(display))} =`);
+    setDisplay(format(result));
     setStored(null);
     setOperator(null);
     setWaiting(true);
@@ -579,9 +612,28 @@ function Calculator() {
     setStored(null);
     setOperator(null);
     setWaiting(false);
+    setHistory("");
+  }
+
+  function toggleSign() {
+    if (display === "エラー") return;
+    if (waiting && operator) {
+      setDisplay("-0");
+      setWaiting(false);
+      return;
+    }
+    setDisplay((current) => (current.startsWith("-") ? current.slice(1) : `-${current}`));
+  }
+
+  function percent() {
+    if (display === "エラー" || waiting) return;
+    setDisplay(format(Number(display) / 100));
   }
 
   const keys = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−"];
+  const expression = stored !== null && operator
+    ? `${history ? `${history} ` : ""}${format(stored)} ${operator}${waiting ? "" : ` ${display}`}`
+    : history;
 
   return (
     <div className="panel h-fit">
@@ -589,11 +641,14 @@ function Calculator() {
         <Icon name="calculator" size={20} />
         計算機
       </h2>
-      <div className="mb-3 overflow-hidden rounded-md bg-slate-950 px-4 py-5 text-right font-mono text-3xl font-bold text-white">{display}</div>
+      <div className="mb-3 min-h-[96px] overflow-hidden rounded-md bg-slate-950 px-4 py-3 text-right font-mono text-white">
+        <p className="h-6 truncate text-sm font-semibold text-slate-400">{expression || "\u00a0"}</p>
+        <p className="mt-1 truncate text-3xl font-bold">{display}</p>
+      </div>
       <div className="grid grid-cols-4 gap-2">
         <button className="calculator-key col-span-2" onClick={clear} type="button">C</button>
-        <button className="calculator-key" onClick={() => setDisplay(String(Number(display) * -1))} type="button">±</button>
-        <button className="calculator-key" onClick={() => setDisplay(String(Number(display) / 100))} type="button">%</button>
+        <button className="calculator-key" onClick={toggleSign} type="button">±</button>
+        <button className="calculator-key" onClick={percent} type="button">%</button>
         {keys.map((key) => (
           <button
             className={`calculator-key ${["÷", "×", "−"].includes(key) ? "bg-blue-50 text-focus" : ""}`}

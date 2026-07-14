@@ -1,7 +1,10 @@
+import unicodedata
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fsrs import Card, Rating, Scheduler
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -11,12 +14,21 @@ from app.db.session import get_db
 from app.models.flashcard import Flashcard
 from app.models.user import User
 from app.schemas.common import SUBJECTS
-from app.schemas.flashcard import FlashcardCreate, FlashcardList, FlashcardOut, FlashcardReview, FlashcardUpdate
+from app.schemas.flashcard import (
+    FlashcardCreate,
+    FlashcardGenerateResult,
+    FlashcardList,
+    FlashcardOut,
+    FlashcardReview,
+    FlashcardUpdate,
+)
 from app.services.ai_service import generate_json
 
 router = APIRouter(prefix="/flashcards", tags=["Flashcards"])
+fsrs_scheduler = Scheduler()
+TOKYO_TZ = ZoneInfo("Asia/Tokyo")
 
-STATUSES = {"new", "learning", "mastered"}
+STATUSES = {"new", "learning"}
 
 FE_DEFAULT_CARDS = [
     ("テクノロジ系", "2進数", "0と1だけで数を表す方法。コンピュータ内部の数値表現の基本。", "10進数との変換、ビット数、桁の重みを確認する。"),
@@ -67,6 +79,10 @@ def validate_status(value: str):
         raise HTTPException(422, "状態を確認してください")
 
 
+def normalize_term(value: str):
+    return "".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+
 def seed_default_cards(db: Session, user_id: uuid.UUID):
     exists = db.scalar(select(Flashcard.id).where(Flashcard.user_id == user_id).limit(1))
     if exists:
@@ -79,12 +95,37 @@ def seed_default_cards(db: Session, user_id: uuid.UUID):
 
 
 def stats_for(cards: list[Flashcard]):
+    today = datetime.now(TOKYO_TZ).date()
+    start_at = datetime.combine(today, datetime.min.time(), tzinfo=TOKYO_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+    end_at = datetime.combine(today, datetime.max.time(), tzinfo=TOKYO_TZ).astimezone(timezone.utc).replace(tzinfo=None)
     return {
         "total": len(cards),
         "new": sum(1 for card in cards if card.status == "new"),
         "learning": sum(1 for card in cards if card.status == "learning"),
-        "mastered": sum(1 for card in cards if card.status == "mastered"),
+        "today_reviewed": sum(
+            1
+            for card in cards
+            if card.last_reviewed_at and start_at <= card.last_reviewed_at <= end_at
+        ),
     }
+
+
+def review_priority(card: Flashcard):
+    status_priority = {"learning": 0, "new": 1}
+    return (
+        status_priority.get(card.status, 3),
+        card.next_review_at or datetime.min,
+        card.last_reviewed_at or datetime.min,
+        card.term,
+    )
+
+
+def load_fsrs_card(row: Flashcard):
+    return Card.from_json(row.fsrs_card) if row.fsrs_card else Card()
+
+
+def status_from_fsrs():
+    return "learning"
 
 
 class GenerateFlashcards(BaseModel):
@@ -97,6 +138,7 @@ class GenerateFlashcards(BaseModel):
 def list_flashcards(
     subject: str | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
+    practice: bool = Query(False),
     q: str | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -112,10 +154,15 @@ def list_flashcards(
         query = query.where(Flashcard.subject == subject)
     if status_filter:
         query = query.where(Flashcard.status == status_filter)
+    elif not practice:
+        query = query.where(
+            or_(Flashcard.next_review_at.is_(None), Flashcard.next_review_at <= datetime.utcnow())
+        )
     if q:
         like = f"%{q}%"
         query = query.where(or_(Flashcard.term.ilike(like), Flashcard.definition.ilike(like), Flashcard.exam_point.ilike(like)))
-    items = db.scalars(query.order_by(Flashcard.subject, Flashcard.status, Flashcard.term)).all()
+    items = list(db.scalars(query).all())
+    items.sort(key=review_priority)
     all_cards = db.scalars(select(Flashcard).where(Flashcard.user_id == current_user.id)).all()
     return {"items": items, "stats": stats_for(all_cards)}
 
@@ -130,7 +177,7 @@ def create_flashcard(payload: FlashcardCreate, db: Session = Depends(get_db), cu
     return row
 
 
-@router.post("/generate")
+@router.post("/generate", response_model=FlashcardGenerateResult)
 def generate_flashcards(payload: GenerateFlashcards, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     validate_subject(payload.subject)
     seed_default_cards(db, current_user.id)
@@ -141,6 +188,7 @@ def generate_flashcards(payload: GenerateFlashcards, db: Session = Depends(get_d
             select(Flashcard.term).where(Flashcard.user_id == current_user.id, Flashcard.subject == payload.subject)
         ).all()
     }
+    existing_term_keys = {normalize_term(term) for term in existing_terms}
     data = generate_json(
         (
             "あなたは基本情報技術者試験の学習用単語帳を作る講師です。"
@@ -166,9 +214,11 @@ def generate_flashcards(payload: GenerateFlashcards, db: Session = Depends(get_d
         term = str(item.get("term") or "").strip()
         definition = str(item.get("definition") or "").strip()
         exam_point = str(item.get("exam_point") or "").strip()
-        if not term or not definition or not exam_point or term in existing_terms:
+        term_key = normalize_term(term)
+        if not term_key or not definition or not exam_point or term_key in existing_term_keys:
             continue
         existing_terms.add(term)
+        existing_term_keys.add(term_key)
         rows.append(
             Flashcard(
                 user_id=current_user.id,
@@ -185,6 +235,8 @@ def generate_flashcards(payload: GenerateFlashcards, db: Session = Depends(get_d
         raise HTTPException(502, "追加できる単語がありませんでした。条件を変えてもう一度お試しください。")
     db.add_all(rows)
     db.commit()
+    for row in rows:
+        db.refresh(row)
     return {"added": len(rows), "items": rows}
 
 
@@ -207,10 +259,18 @@ def review_flashcard(card_id: uuid.UUID, payload: FlashcardReview, db: Session =
     row = db.get(Flashcard, card_id)
     if not row or row.user_id != current_user.id:
         raise HTTPException(404, "単語が見つかりません")
+    reviewed_at = datetime.now(timezone.utc)
+    fsrs_card, _ = fsrs_scheduler.review_card(
+        load_fsrs_card(row),
+        Rating.Good if payload.remembered else Rating.Again,
+        review_datetime=reviewed_at,
+    )
     row.review_count += 1
     row.correct_count += int(payload.remembered)
-    row.last_reviewed_at = datetime.utcnow()
-    row.status = "mastered" if payload.remembered else "learning"
+    row.last_reviewed_at = reviewed_at.replace(tzinfo=None)
+    row.next_review_at = fsrs_card.due.astimezone(timezone.utc).replace(tzinfo=None)
+    row.fsrs_card = fsrs_card.to_json()
+    row.status = status_from_fsrs()
     db.commit()
     db.refresh(row)
     return row

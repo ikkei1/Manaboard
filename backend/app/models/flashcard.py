@@ -12,6 +12,7 @@ class Flashcard(Base):
     __table_args__ = (
         Index("ix_flashcards_user_subject", "user_id", "subject"),
         Index("ix_flashcards_user_status", "user_id", "status"),
+        Index("ix_flashcards_user_due", "user_id", "next_review_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -24,5 +25,7 @@ class Flashcard(Base):
     review_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     correct_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    next_review_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    fsrs_card: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

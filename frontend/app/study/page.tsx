@@ -10,7 +10,6 @@ type StudyLog = { id: string; study_minutes: number; studied_at: string; memo?: 
 type StudyList = { items: StudyLog[]; total: number; page: number; page_size: number };
 
 const DEFAULT_STUDY_SUBJECT = "テクノロジ系";
-const breakMinutes: Record<Exclude<TimerMode, "focus">, number> = { short: 5, long: 15 };
 const modeLabels: Record<TimerMode, string> = { focus: "集中", short: "休憩", long: "長めの休憩" };
 const modeColors: Record<TimerMode, string> = { focus: "#2563eb", short: "#059669", long: "#0f766e" };
 
@@ -20,6 +19,12 @@ function formatTimer(totalSeconds: number) {
   return [minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }
 
+function currentSetNumber(mode: TimerMode, completedFocusCount: number) {
+  if (mode === "long" && completedFocusCount > 0) return 4;
+  if (mode === "short" && completedFocusCount > 0) return ((completedFocusCount - 1) % 4) + 1;
+  return (completedFocusCount % 4) + 1;
+}
+
 export default function StudyPage() {
   const [data, setData] = useState<StudyList | null>(null);
   const [page, setPage] = useState(1);
@@ -27,6 +32,8 @@ export default function StudyPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [memo, setMemo] = useState("");
   const [focusMinutes, setFocusMinutes] = useState(25);
+  const [shortBreakMinutes, setShortBreakMinutes] = useState(5);
+  const [longBreakMinutes, setLongBreakMinutes] = useState(15);
   const [timerMode, setTimerMode] = useState<TimerMode>("focus");
   const [remainingSeconds, setRemainingSeconds] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
@@ -34,10 +41,20 @@ export default function StudyPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const endAtRef = useRef<number | null>(null);
   const completingRef = useRef(false);
+  const segmentStartRemainingRef = useRef<number | null>(null);
+  const isRunningRef = useRef(false);
+  const remainingSecondsRef = useRef(25 * 60);
+  const timerModeRef = useRef<TimerMode>("focus");
+  const memoRef = useRef("");
+  const pauseAndSaveRef = useRef<(refreshHistory: boolean, keepalive: boolean, updateScreen: boolean) => void>(() => {});
 
-  const durationSeconds = (timerMode === "focus" ? focusMinutes : breakMinutes[timerMode]) * 60;
-  const elapsedSeconds = Math.max(0, durationSeconds - remainingSeconds);
-  const focusElapsedSeconds = timerMode === "focus" ? elapsedSeconds : 0;
+  const durationSeconds = (
+    timerMode === "focus"
+      ? focusMinutes
+      : timerMode === "short"
+        ? shortBreakMinutes
+        : longBreakMinutes
+  ) * 60;
   const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   const load = useCallback(async (requestedPage = page) => {
@@ -45,6 +62,73 @@ export default function StudyPage() {
     if (studiedAt) params.set("studied_at", studiedAt);
     setData(await apiFetch<StudyList>(`/study?${params}`));
   }, [page, studiedAt]);
+
+  const getCurrentRemaining = useCallback(() => {
+    if (!endAtRef.current) return remainingSecondsRef.current;
+    return Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000));
+  }, []);
+
+  const saveFocusSession = useCallback(async (seconds: number, refreshHistory: boolean, keepalive: boolean) => {
+    const minutes = Math.max(1, Math.ceil(seconds / 60));
+    await apiFetch("/study", {
+      method: "POST",
+      body: JSON.stringify({
+        subject: DEFAULT_STUDY_SUBJECT,
+        study_minutes: minutes,
+        studied_at: todayString(),
+        memo: memoRef.current.trim() || null,
+      }),
+      keepalive,
+    });
+    if (refreshHistory) {
+      setPage(1);
+      await load(1);
+    }
+  }, [load]);
+
+  const flushFocusSegment = useCallback(async (secondsRemaining: number, refreshHistory: boolean, keepalive: boolean) => {
+    const segmentStart = segmentStartRemainingRef.current;
+    segmentStartRemainingRef.current = null;
+    if (timerModeRef.current !== "focus" || segmentStart === null) return;
+    const elapsedSeconds = Math.max(0, segmentStart - secondsRemaining);
+    if (elapsedSeconds < 1) return;
+    await saveFocusSession(elapsedSeconds, refreshHistory, keepalive);
+  }, [saveFocusSession]);
+
+  const pauseAndSave = useCallback((refreshHistory: boolean, keepalive: boolean, updateScreen: boolean) => {
+    if (!isRunningRef.current) return;
+    const seconds = getCurrentRemaining();
+    remainingSecondsRef.current = seconds;
+    isRunningRef.current = false;
+    endAtRef.current = null;
+    if (updateScreen) {
+      setRemainingSeconds(seconds);
+      setIsRunning(false);
+    }
+    void flushFocusSegment(seconds, refreshHistory, keepalive).catch((error) => {
+      if (updateScreen) setErrorMessage((error as Error).message);
+    });
+  }, [flushFocusSegment, getCurrentRemaining]);
+
+  useEffect(() => {
+    pauseAndSaveRef.current = pauseAndSave;
+  }, [pauseAndSave]);
+
+  useEffect(() => {
+    remainingSecondsRef.current = remainingSeconds;
+  }, [remainingSeconds]);
+
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+
+  useEffect(() => {
+    timerModeRef.current = timerMode;
+  }, [timerMode]);
+
+  useEffect(() => {
+    memoRef.current = memo;
+  }, [memo]);
 
   useEffect(() => {
     load().catch((error) => setErrorMessage((error as Error).message));
@@ -54,7 +138,9 @@ export default function StudyPage() {
     if (!isRunning) return;
     const updateRemaining = () => {
       if (!endAtRef.current) return;
-      setRemainingSeconds(Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000)));
+      const seconds = Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000));
+      remainingSecondsRef.current = seconds;
+      setRemainingSeconds(seconds);
     };
     updateRemaining();
     const timer = window.setInterval(updateRemaining, 250);
@@ -65,46 +151,87 @@ export default function StudyPage() {
     if (!isRunning || remainingSeconds !== 0 || completingRef.current) return;
     completingRef.current = true;
     setIsRunning(false);
+    isRunningRef.current = false;
     endAtRef.current = null;
     void completeSession().finally(() => {
       completingRef.current = false;
     });
   }, [isRunning, remainingSeconds]);
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") pauseAndSaveRef.current(false, true, true);
+    };
+    const handlePageHide = () => pauseAndSaveRef.current(false, true, false);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      pauseAndSaveRef.current(false, true, false);
+    };
+  }, []);
+
   function startTimer() {
     const seconds = remainingSeconds > 0 ? remainingSeconds : durationSeconds;
     setErrorMessage("");
     setRemainingSeconds(seconds);
+    remainingSecondsRef.current = seconds;
     endAtRef.current = Date.now() + seconds * 1000;
+    segmentStartRemainingRef.current = seconds;
     setIsRunning(true);
+    isRunningRef.current = true;
+  }
+
+  function pauseTimer() {
+    pauseAndSave(true, false, true);
+  }
+
+  function resetTimer() {
+    setIsRunning(false);
+    isRunningRef.current = false;
+    endAtRef.current = null;
+    completingRef.current = false;
+    segmentStartRemainingRef.current = null;
+    setTimerMode("focus");
+    timerModeRef.current = "focus";
+    setRemainingSeconds(focusMinutes * 60);
+    remainingSecondsRef.current = focusMinutes * 60;
+    setCompletedFocusCount(0);
+    setErrorMessage("");
+    setSettingsOpen(false);
   }
 
   function setTimerMinutes(minutes: number) {
     const bounded = Math.max(1, Math.min(180, minutes || 1));
     setFocusMinutes(bounded);
-    if (!isRunning && timerMode === "focus") setRemainingSeconds(bounded * 60);
+    if (!isRunning && timerMode === "focus") {
+      setRemainingSeconds(bounded * 60);
+      remainingSecondsRef.current = bounded * 60;
+    }
+  }
+
+  function setBreakTimerMinutes(mode: Exclude<TimerMode, "focus">, minutes: number) {
+    const bounded = Math.max(1, Math.min(60, minutes || 1));
+    if (mode === "short") setShortBreakMinutes(bounded);
+    else setLongBreakMinutes(bounded);
+    if (!isRunning && timerMode === mode) {
+      setRemainingSeconds(bounded * 60);
+      remainingSecondsRef.current = bounded * 60;
+    }
   }
 
   function prepareMode(nextMode: TimerMode) {
+    const nextMinutes = nextMode === "focus"
+      ? focusMinutes
+      : nextMode === "short"
+        ? shortBreakMinutes
+        : longBreakMinutes;
     setTimerMode(nextMode);
-    setRemainingSeconds((nextMode === "focus" ? focusMinutes : breakMinutes[nextMode]) * 60);
-  }
-
-  async function saveFocusSession(seconds: number, fallbackMemo: string) {
-    const minutes = Math.max(1, Math.ceil(seconds / 60));
-    await apiFetch("/study", {
-      method: "POST",
-      body: JSON.stringify({
-        subject: DEFAULT_STUDY_SUBJECT,
-        study_minutes: minutes,
-        studied_at: todayString(),
-        memo: memo || fallbackMemo,
-      }),
-    });
-    setMemo("");
-    setPage(1);
-    await load(1);
-    return minutes;
+    timerModeRef.current = nextMode;
+    setRemainingSeconds(nextMinutes * 60);
+    remainingSecondsRef.current = nextMinutes * 60;
+    segmentStartRemainingRef.current = null;
   }
 
   async function completeSession() {
@@ -112,7 +239,9 @@ export default function StudyPage() {
       if (timerMode === "focus") {
         const nextCount = completedFocusCount + 1;
         const nextMode: Exclude<TimerMode, "focus"> = nextCount % 4 === 0 ? "long" : "short";
-        await saveFocusSession(durationSeconds, "ポモドーロ集中完了");
+        await flushFocusSegment(0, true, false);
+        setMemo("");
+        memoRef.current = "";
         setCompletedFocusCount(nextCount);
         prepareMode(nextMode);
         return;
@@ -121,30 +250,8 @@ export default function StudyPage() {
     } catch (error) {
       setErrorMessage((error as Error).message);
       setRemainingSeconds(durationSeconds);
-    }
-  }
-
-  async function finishEarly() {
-    if (!isRunning) return;
-    setIsRunning(false);
-    endAtRef.current = null;
-    if (timerMode !== "focus") {
-      prepareMode("focus");
-      return;
-    }
-    if (focusElapsedSeconds <= 0) {
-      setRemainingSeconds(durationSeconds);
-      return;
-    }
-    try {
-      await saveFocusSession(focusElapsedSeconds, `ポモドーロで${formatTimer(focusElapsedSeconds)}集中`);
-      const nextCount = completedFocusCount + 1;
-      const nextMode: Exclude<TimerMode, "focus"> = nextCount % 4 === 0 ? "long" : "short";
-      setCompletedFocusCount(nextCount);
-      prepareMode(nextMode);
-    } catch (error) {
-      setErrorMessage((error as Error).message);
-      setRemainingSeconds(durationSeconds);
+      remainingSecondsRef.current = durationSeconds;
+      segmentStartRemainingRef.current = null;
     }
   }
 
@@ -172,10 +279,13 @@ export default function StudyPage() {
         <PomodoroClock
           color={modeColors[timerMode]}
           durationSeconds={durationSeconds}
+          isBreak={timerMode !== "focus"}
+          actionLabel={remainingSeconds === durationSeconds ? "開始" : "再開"}
           label={modeLabels[timerMode]}
           onStart={startTimer}
           remainingSeconds={remainingSeconds}
-          showStart={!isRunning && remainingSeconds === durationSeconds}
+          setLabel={`セット ${currentSetNumber(timerMode, completedFocusCount)} / 4`}
+          showAction={!isRunning}
         />
 
         <div className="relative z-10 mx-auto -mt-20 flex w-full max-w-lg items-center justify-between gap-5 px-2 sm:-mt-24 sm:px-8">
@@ -193,12 +303,12 @@ export default function StudyPage() {
           <button
             className="grid h-24 w-24 shrink-0 place-items-center rounded-full bg-coral text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-35 sm:h-28 sm:w-28"
             disabled={!isRunning}
-            onClick={finishEarly}
+            onClick={pauseTimer}
             type="button"
           >
             <span>
-              <Icon className="mx-auto mb-2" name="x" size={22} />
-              停止
+              <Icon className="mx-auto mb-2" name="pause" size={22} />
+              一時停止
             </span>
           </button>
         </div>
@@ -219,7 +329,7 @@ export default function StudyPage() {
 
             <div className="mt-5 grid gap-5 border-t border-slate-200 pt-5">
               <div>
-                <p className="label">タイマー分数</p>
+                <p className="label">集中時間</p>
                 <div className="mt-2 grid grid-cols-4 gap-2">
                   {[15, 25, 45, 60].map((minutes) => (
                     <button
@@ -244,12 +354,48 @@ export default function StudyPage() {
                 />
               </div>
 
+              <div>
+                <p className="label">休憩時間</p>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-slate-500">短い休憩</span>
+                    <input
+                      className="field"
+                      disabled={isRunning}
+                      max={60}
+                      min={1}
+                      onChange={(event) => setBreakTimerMinutes("short", Number(event.target.value))}
+                      type="number"
+                      value={shortBreakMinutes}
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-sm font-semibold text-slate-500">長い休憩</span>
+                    <input
+                      className="field"
+                      disabled={isRunning}
+                      max={60}
+                      min={1}
+                      onChange={(event) => setBreakTimerMinutes("long", Number(event.target.value))}
+                      type="number"
+                      value={longBreakMinutes}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <label className="block">
                 <span className="label">メモ</span>
-                <input className="field mt-1" placeholder="SQL / 暗号化 / 稼働率" value={memo} onChange={(event) => setMemo(event.target.value)} />
+                <input className="field mt-1" value={memo} onChange={(event) => setMemo(event.target.value)} />
               </label>
 
-              <button className="btn-primary" onClick={() => setSettingsOpen(false)} type="button">完了</button>
+              <div className="grid grid-cols-2 gap-3">
+                <button className="btn-secondary gap-2" onClick={resetTimer} type="button">
+                  <Icon name="timer" size={18} />
+                  リセット
+                </button>
+                <button className="btn-primary" onClick={() => setSettingsOpen(false)} type="button">完了</button>
+              </div>
             </div>
           </div>
         </div>
@@ -312,19 +458,25 @@ export default function StudyPage() {
 }
 
 function PomodoroClock({
+  actionLabel,
   color,
   durationSeconds,
+  isBreak,
   label,
   onStart,
   remainingSeconds,
-  showStart,
+  setLabel,
+  showAction,
 }: {
+  actionLabel: string;
   color: string;
   durationSeconds: number;
+  isBreak: boolean;
   label: string;
   onStart: () => void;
   remainingSeconds: number;
-  showStart: boolean;
+  setLabel: string;
+  showAction: boolean;
 }) {
   const radius = 94;
   const circumference = Number((2 * Math.PI * radius).toFixed(3));
@@ -350,21 +502,40 @@ function PomodoroClock({
           />
         </svg>
         <div className="absolute inset-0 grid place-items-center">
-          {showStart ? (
+          {showAction ? (
             <button
-              className="grid h-[68%] w-[68%] place-items-center rounded-full bg-focus text-xl font-bold text-white shadow-lg transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:text-3xl"
+              className={`grid h-[68%] w-[68%] place-items-center rounded-full text-xl font-bold text-white shadow-lg transition focus:outline-none focus:ring-4 sm:text-3xl ${
+                isBreak
+                  ? "bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-200"
+                  : "bg-focus hover:bg-blue-700 focus:ring-blue-200"
+              }`}
               onClick={onStart}
               type="button"
             >
-              <span>
-                <Icon className="mx-auto mb-3" name="play" size={32} />
-                開始
-              </span>
+              {actionLabel === "再開" ? (
+                <span>
+                  <span className="block font-mono text-4xl font-normal sm:text-5xl">{formatTimer(remainingSeconds)}</span>
+                  <span className="mt-4 inline-flex items-center gap-2 text-base sm:text-lg">
+                    <Icon name="play" size={21} />
+                    再開
+                  </span>
+                  <span className="mt-3 block text-sm font-bold text-white/85">{label}</span>
+                  <span className="mt-1 block text-xs font-semibold text-white/70">{setLabel}</span>
+                </span>
+              ) : (
+                <span>
+                  <Icon className="mx-auto mb-3" name="play" size={32} />
+                  <span className="block">開始</span>
+                  <span className="mt-3 block text-sm font-bold text-white/85">{label}</span>
+                  <span className="mt-1 block text-xs font-semibold text-white/70">{setLabel}</span>
+                </span>
+              )}
             </button>
           ) : (
             <div className="text-center">
               <span className="block font-mono text-6xl font-normal leading-none text-ink sm:text-8xl">{formatTimer(remainingSeconds)}</span>
               <span className="mt-4 block text-sm font-bold text-slate-500">{label}</span>
+              <span className="mt-1 block text-xs font-semibold text-slate-400">{setLabel}</span>
             </div>
           )}
         </div>

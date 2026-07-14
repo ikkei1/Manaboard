@@ -5,9 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import dashboard, flashcards, goals, learning_ai, study
 from app.db.session import engine
+from app.db.schema_updates import ensure_flashcard_scheduler_schema
 from app.models import Base
 
 Base.metadata.create_all(bind=engine)
+ensure_flashcard_scheduler_schema()
 
 app = FastAPI(title="Manaboard API", version="0.1.0")
 
