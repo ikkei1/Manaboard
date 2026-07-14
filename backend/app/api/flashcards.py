@@ -1,3 +1,4 @@
+import hashlib
 import unicodedata
 import uuid
 from datetime import datetime, timezone
@@ -95,13 +96,21 @@ def seed_default_cards(db: Session, user_id: uuid.UUID):
 
 
 def stats_for(cards: list[Flashcard]):
+    now = datetime.utcnow()
     today = datetime.now(TOKYO_TZ).date()
     start_at = datetime.combine(today, datetime.min.time(), tzinfo=TOKYO_TZ).astimezone(timezone.utc).replace(tzinfo=None)
     end_at = datetime.combine(today, datetime.max.time(), tzinfo=TOKYO_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+    pending = sum(
+        1
+        for card in cards
+        if card.next_review_at is None or card.next_review_at <= now
+    )
     return {
         "total": len(cards),
         "new": sum(1 for card in cards if card.status == "new"),
         "learning": sum(1 for card in cards if card.status == "learning"),
+        "pending": pending,
+        "learned": len(cards) - pending,
         "today_reviewed": sum(
             1
             for card in cards
@@ -118,6 +127,11 @@ def review_priority(card: Flashcard):
         card.last_reviewed_at or datetime.min,
         card.term,
     )
+
+
+def daily_priority(card: Flashcard, user_id: uuid.UUID, day):
+    source = f"{user_id}:{day.isoformat()}:{card.id}".encode("utf-8")
+    return hashlib.sha256(source).digest()
 
 
 def load_fsrs_card(row: Flashcard):
@@ -138,6 +152,7 @@ class GenerateFlashcards(BaseModel):
 def list_flashcards(
     subject: str | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
+    scope: str | None = Query(None),
     practice: bool = Query(False),
     q: str | None = Query(None),
     db: Session = Depends(get_db),
@@ -148,13 +163,17 @@ def list_flashcards(
         validate_subject(subject)
     if status_filter:
         validate_status(status_filter)
+    if scope not in {None, "daily", "learned"}:
+        raise HTTPException(422, "表示条件を確認してください")
 
     query = select(Flashcard).where(Flashcard.user_id == current_user.id)
     if subject:
         query = query.where(Flashcard.subject == subject)
     if status_filter:
         query = query.where(Flashcard.status == status_filter)
-    elif not practice:
+    elif scope == "learned":
+        query = query.where(Flashcard.next_review_at > datetime.utcnow())
+    elif scope != "daily" and not practice:
         query = query.where(
             or_(Flashcard.next_review_at.is_(None), Flashcard.next_review_at <= datetime.utcnow())
         )
@@ -162,7 +181,12 @@ def list_flashcards(
         like = f"%{q}%"
         query = query.where(or_(Flashcard.term.ilike(like), Flashcard.definition.ilike(like), Flashcard.exam_point.ilike(like)))
     items = list(db.scalars(query).all())
-    items.sort(key=review_priority)
+    if scope == "daily":
+        today = datetime.now(TOKYO_TZ).date()
+        items.sort(key=lambda card: daily_priority(card, current_user.id, today))
+        items = items[:10]
+    else:
+        items.sort(key=review_priority)
     all_cards = db.scalars(select(Flashcard).where(Flashcard.user_id == current_user.id)).all()
     return {"items": items, "stats": stats_for(all_cards)}
 
@@ -265,6 +289,8 @@ def review_flashcard(card_id: uuid.UUID, payload: FlashcardReview, db: Session =
         Rating.Good if payload.remembered else Rating.Again,
         review_datetime=reviewed_at,
     )
+    if not payload.remembered:
+        fsrs_card.due = reviewed_at
     row.review_count += 1
     row.correct_count += int(payload.remembered)
     row.last_reviewed_at = reviewed_at.replace(tzinfo=None)

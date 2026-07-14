@@ -40,6 +40,8 @@ class FlashcardStats(BaseModel):
     total: int
     new: int
     learning: int
+    pending: int
+    learned: int
     today_reviewed: int
 
 

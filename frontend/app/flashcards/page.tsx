@@ -6,6 +6,7 @@ import { Shell } from "@/components/Shell";
 import { apiFetch, subjects } from "@/lib/api";
 
 type CardStatus = "new" | "learning";
+type CardFilter = "" | "daily" | "new" | "learned";
 
 type Flashcard = {
   id: string;
@@ -24,7 +25,7 @@ type Flashcard = {
 
 type FlashcardResponse = {
   items: Flashcard[];
-  stats: { total: number; new: number; learning: number };
+  stats: { total: number; new: number; learning: number; pending: number; learned: number; today_reviewed: number };
 };
 
 type GenerateFlashcardsResponse = {
@@ -32,26 +33,31 @@ type GenerateFlashcardsResponse = {
   items: Flashcard[];
 };
 
-const statusOptions: { value: "" | CardStatus; label: string }[] = [
-  { value: "", label: "今日の復習" },
-  { value: "new", label: "未学習の単語" },
-  { value: "learning", label: "学習済みの単語" },
+const statusOptions: { value: CardFilter; label: string }[] = [
+  { value: "daily", label: "今日の10問" },
+  { value: "", label: "未学習・復習" },
+  { value: "new", label: "未学習のみ" },
+  { value: "learned", label: "学習済み" },
 ];
-
-const statusLabels: Record<CardStatus, string> = {
-  new: "未学習",
-  learning: "学習済み",
-};
 
 function accuracy(card: Flashcard) {
   if (!card.review_count) return 0;
   return Math.round((card.correct_count / card.review_count) * 100);
 }
 
+function isPending(card: Flashcard) {
+  return !card.next_review_at || new Date(card.next_review_at).getTime() <= Date.now();
+}
+
+function cardStatusLabel(card: Flashcard) {
+  if (!isPending(card)) return "学習済み";
+  return card.status === "new" ? "未学習" : "復習";
+}
+
 export default function FlashcardsPage() {
   const [data, setData] = useState<FlashcardResponse | null>(null);
   const [subject, setSubject] = useState("");
-  const [status, setStatus] = useState<"" | CardStatus>("");
+  const [status, setStatus] = useState<CardFilter>("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [generateSubject, setGenerateSubject] = useState(subjects[0]);
@@ -73,7 +79,9 @@ export default function FlashcardsPage() {
   async function load(nextSubject = subject, nextStatus = status) {
     const params = new URLSearchParams();
     if (nextSubject) params.set("subject", nextSubject);
-    if (nextStatus) params.set("status", nextStatus);
+    if (nextStatus === "daily") params.set("scope", "daily");
+    if (nextStatus === "new") params.set("status", "new");
+    if (nextStatus === "learned") params.set("scope", "learned");
     const response = await apiFetch<FlashcardResponse>(`/flashcards?${params}`, { cache: "no-store" });
     const generatedOrder = new Map(generatedCardIdsRef.current.map((id, index) => [id, index]));
     const items = generatedOrder.size
@@ -136,9 +144,15 @@ export default function FlashcardsPage() {
       setData((previous) => {
         if (!previous) return previous;
         const nextStats = { ...previous.stats };
+        const wasPending = isPending(current);
+        const remainsPending = isPending(reviewed);
         if (current.status !== reviewed.status) {
           nextStats[current.status] = Math.max(0, nextStats[current.status] - 1);
           nextStats[reviewed.status] += 1;
+        }
+        if (wasPending !== remainsPending) {
+          nextStats.pending = Math.max(0, nextStats.pending + (remainsPending ? 1 : -1));
+          nextStats.learned = Math.max(0, nextStats.learned + (remainsPending ? -1 : 1));
         }
         return {
           items: previous.items.filter((card) => card.id !== current.id),
@@ -201,12 +215,15 @@ export default function FlashcardsPage() {
       setReviewedCards((previous) => previous.filter((card) => card.id !== current.id));
       setData((previous) => {
         if (!previous) return previous;
+        const pending = isPending(current);
         return {
           items: previous.items.filter((card) => card.id !== current.id),
           stats: {
             ...previous.stats,
             total: Math.max(0, previous.stats.total - 1),
             [current.status]: Math.max(0, previous.stats[current.status] - 1),
+            pending: Math.max(0, previous.stats.pending - (pending ? 1 : 0)),
+            learned: Math.max(0, previous.stats.learned - (pending ? 0 : 1)),
           },
         };
       });
@@ -285,7 +302,7 @@ export default function FlashcardsPage() {
 
               <div>
                 <p className="label">状態</p>
-                <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   {statusOptions.map((option) => (
                     <button
                       className={`segment-button ${status === option.value ? "segment-on" : "segment-off"}`}
@@ -424,7 +441,7 @@ export default function FlashcardsPage() {
                     <p className="mt-5 rounded-md bg-blue-50 p-4 font-semibold leading-relaxed text-blue-950">{current.exam_point}</p>
                     <div className="mt-5 flex flex-wrap gap-2">
                       <span className="status-pill">{current.subject}</span>
-                      <span className="status-pill">{statusLabels[current.status]}</span>
+                      <span className="status-pill">{cardStatusLabel(current)}</span>
                       <span className="status-pill">{accuracy(current)}%</span>
                     </div>
                   </div>
@@ -454,8 +471,8 @@ export default function FlashcardsPage() {
 
       <section className="mb-5 grid grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-md border border-slate-200 bg-white">
         <DeckStat title="登録単語" value={data?.stats.total ?? 0} />
-        <DeckStat title="未学習" value={data?.stats.new ?? 0} />
-        <DeckStat title="学習済み" value={data?.stats.learning ?? 0} />
+        <DeckStat title="未学習・復習" value={data?.stats.pending ?? 0} />
+        <DeckStat title="学習済み" value={data?.stats.learned ?? 0} />
       </section>
 
       <section>
